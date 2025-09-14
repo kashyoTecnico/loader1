@@ -18,8 +18,11 @@ app.get("/search", async (req, res) => {
   if (!query) return res.json([]);
 
   try {
-    const url = `https://www.ceenaija.com/?s=${encodeURIComponent(query)}`;
-    console.log("Fetching URL:", url);
+    const targetUrl = `https://www.ceenaija.com/?s=${encodeURIComponent(query)}`;
+
+    // Usar AllOrigins para evitar bloqueos
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`;
+    console.log("Fetching via AllOrigins:", url);
 
     const html = await axios.get(url, { timeout: 15000 }).then(r => r.data);
     console.log("HTML length:", html.length);
@@ -46,22 +49,24 @@ app.get("/track", async (req, res) => {
   if (!href) return res.status(400).json({ error: "No URL provided" });
 
   try {
-    console.log("Fetching track URL:", href);
-    const html = await axios.get(href, { timeout: 15000 }).then(r => r.data);
+    const url = `https://api.allorigins.win/raw?url=${encodeURIComponent(href)}`;
+    console.log("Fetching track via AllOrigins:", url);
+
+    const html = await axios.get(url, { timeout: 15000 }).then(r => r.data);
     const $ = cheerio.load(html);
 
     const title = $("h1.entry-title").text() || "Unknown";
-    const url = $("figure.wp-block-audio audio").attr("src") || "";
+    const audioUrl = $("figure.wp-block-audio audio").attr("src") || "";
     const image = $("img.wp-post-image").attr("src") || "";
 
-    res.json({ title, url, image });
+    res.json({ title, url: audioUrl, image });
   } catch (err) {
     console.error("Error fetching track:", err.message);
     res.status(500).json({ error: "Failed to fetch track" });
   }
 });
 
-// 🔹 OJO: Usa el puerto dinámico que Railway da
+// Puerto dinámico para Render
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${port}`);
