@@ -1,4 +1,4 @@
-// server.cjs
+ // server.cjs
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
@@ -56,5 +56,8 @@ app.get("/track", async (req, res) => {
   }
 });
 
+// 🚀 Railway necesita escuchar en 0.0.0.0 y el puerto asignado en process.env.PORT
 const port = process.env.PORT || 3000;
-app.listen(port, () => console.log(`Server running on port ${port}`));
+app.listen(port, "0.0.0.0", () => {
+  console.log(`✅ Server running on port ${port}`);
+});
