@@ -7,7 +7,7 @@ const cheerio = require("cheerio");
 const app = express();
 app.use(cors());
 
-// 🔹 Endpoint de prueba para verificar que Railway responde
+// Root test
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy activo 🚀" });
 });
@@ -40,7 +40,7 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// Obtener info de un track específico
+// Track info
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
@@ -61,7 +61,7 @@ app.get("/track", async (req, res) => {
   }
 });
 
-// 🔹 Railway asigna un puerto dinámico, nunca pongas fijo
+// 🔹 OJO: Usa el puerto dinámico que Railway da
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${port}`);
