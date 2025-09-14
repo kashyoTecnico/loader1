@@ -1,40 +1,60 @@
-const express = require("express");
-const cors = require("cors");
-const axios = require("axios");
-const cheerio = require("cheerio");
+import express from "express";
+import cors from "cors";
+import axios from "axios";
+import cheerio from "cheerio";
 
 const app = express();
 app.use(cors());
 
+// Timeout por defecto para axios
+const axiosInstance = axios.create({ timeout: 10000 }); // 10s
+
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
-  
+
   const url = `https://www.ceenaija.com/?s=${encodeURIComponent(query)}`;
-  const html = await axios.get(url).then(r => r.data);
-  const $ = cheerio.load(html);
-  const tracks = [];
-  
-  $(".td-ss-main-content .item-details").each((i, el) => {
-    const title = $(el).find(".entry-title a").text();
-    const href = $(el).find(".entry-title a").attr("href");
-    tracks.push({ title, url: href });
-  });
-  
-  res.json(tracks);
+  console.log("Search request:", query);
+  console.log("Fetching URL:", url);
+
+  try {
+    const html = await axiosInstance.get(url).then(r => r.data);
+    const $ = cheerio.load(html);
+    const tracks = [];
+
+    $(".td-ss-main-content .item-details").each((i, el) => {
+      const title = $(el).find(".entry-title a").text().trim();
+      const href = $(el).find(".entry-title a").attr("href") || "";
+      if (title && href) tracks.push({ title, url: href });
+    });
+
+    console.log("Tracks found:", tracks.length);
+    res.json(tracks);
+  } catch (err) {
+    console.error("Error fetching tracks:", err.message);
+    res.status(500).json({ error: "Failed to fetch tracks", message: err.message });
+  }
 });
 
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
-  
-  const html = await axios.get(href).then(r => r.data);
-  const $ = cheerio.load(html);
-  const title = $("h1.entry-title").text() || "Unknown";
-  const url = $("figure.wp-block-audio audio").attr("src") || "";
-  const image = $("img.wp-post-image").attr("src") || "";
-  
-  res.json({ title, url, image });
+
+  console.log("Track request:", href);
+
+  try {
+    const html = await axiosInstance.get(href).then(r => r.data);
+    const $ = cheerio.load(html);
+
+    const title = $("h1.entry-title").text().trim() || "Unknown";
+    const url = $("figure.wp-block-audio audio").attr("src") || "";
+    const image = $("img.wp-post-image").attr("src") || "";
+
+    res.json({ title, url, image });
+  } catch (err) {
+    console.error("Error fetching track:", err.message);
+    res.status(500).json({ error: "Failed to fetch track", message: err.message });
+  }
 });
 
 const port = process.env.PORT || 3000;
