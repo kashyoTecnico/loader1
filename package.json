@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Servidor Musikfy scraping tracks",
   "main": "server.cjs",
+  "type": "commonjs",
   "scripts": {
     "start": "node server.cjs"
   },
