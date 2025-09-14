@@ -1,14 +1,15 @@
-import express from "express";
-import cors from "cors";
-import axios from "axios";
-import cheerio from "cheerio";
+const express = require("express");
+const cors = require("cors");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
 const app = express();
 app.use(cors());
 
-// Timeout por defecto para axios
+// Axios con timeout para evitar que se cuelgue
 const axiosInstance = axios.create({ timeout: 10000 }); // 10s
 
+// Buscar tracks
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -36,6 +37,7 @@ app.get("/search", async (req, res) => {
   }
 });
 
+// Obtener info de un track específico
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
