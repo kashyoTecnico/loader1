@@ -1,5 +1,5 @@
 {
-  "name": "musikfy-server-youtube",
+  "name": "musikfy-youtube-server",
   "version": "1.0.0",
   "description": "Servidor Musikfy usando YouTube",
   "main": "server.cjs",
@@ -8,9 +8,10 @@
     "start": "node server.cjs"
   },
   "dependencies": {
-    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "youtube-explode": "^2.0.4"
+    "cors": "^2.8.5",
+    "axios": "^1.6.0",
+    "ytdl-core": "^4.11.1"
   },
   "engines": {
     "node": ">=18.0.0"
