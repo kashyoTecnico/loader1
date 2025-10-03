@@ -18,16 +18,13 @@ app.get("/search", async (req, res) => {
   if (!query) return res.json([]);
 
   try {
-    // URL Soundfly
+    // URLs Soundfly
     const tracksUrl = `https://soundfly.es/search/${encodeURIComponent(query)}/tracks`;
     const artistsUrl = `https://soundfly.es/search/${encodeURIComponent(query)}/artists`;
 
-    // Función helper para scrapear HTML
+    // Función helper
     const fetchHtml = async (url) => {
-      const resp = await axios.get(url, {
-        headers: { "User-Agent": "Mozilla/5.0" },
-        timeout: 15000
-      });
+      const resp = await axios.get(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 });
       return resp.data;
     };
 
@@ -35,7 +32,7 @@ app.get("/search", async (req, res) => {
     const htmlTracks = await fetchHtml(tracksUrl);
     const $t = cheerio.load(htmlTracks);
     const tracks = [];
-    $t('#\\:r5\\:-1-tabpanel > div > div.isolate.select-none.text-sm.outline-none.focus-visible\\:ring-2 [role="option"]').each((i, el) => {
+    $t('#\\:r5\\:-0-tabpanel > div > div > div.flex.gap-x-16.break-inside-avoid.outline-none.border.border-transparent.cursor-pointer.px-16.border-b-divider.border-t-divider.focus-visible\\:bg-focus.hover\\:bg-hover').each((i, el) => {
       const anchor = $t(el).find("a");
       const img = $t(el).find("img").attr("src") || "";
       if (anchor.length > 0) {
@@ -52,7 +49,7 @@ app.get("/search", async (req, res) => {
     const htmlArtists = await fetchHtml(artistsUrl);
     const $a = cheerio.load(htmlArtists);
     const artists = [];
-    $a('#\\:r5\\:-2-tabpanel > div > div.content-grid.grid.grid-cols-\\[repeat\\(var\\(--nVisibleItems\\),minmax\\(0,1fr\\)\\)\\].gap-18 [role="option"]').each((i, el) => {
+    $a('[role="option"]').each((i, el) => {
       const anchor = $a(el).find("a");
       const img = $a(el).find("img").attr("src") || "";
       if (anchor.length > 0) {
@@ -65,7 +62,6 @@ app.get("/search", async (req, res) => {
       }
     });
 
-    // Combinar y enviar
     res.json([...tracks, ...artists]);
   } catch (err) {
     console.error("Error fetching Soundfly:", err.message);
@@ -79,11 +75,7 @@ app.get("/track", async (req, res) => {
   if (!href) return res.status(400).json({ error: "No URL provided" });
 
   try {
-    const html = await axios.get(href, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-      timeout: 15000
-    }).then(r => r.data);
-
+    const html = await axios.get(href, { headers: { "User-Agent": "Mozilla/5.0" }, timeout: 15000 }).then(r => r.data);
     const $ = cheerio.load(html);
 
     const title = $("h1").first().text().trim() || "Unknown";
@@ -97,7 +89,6 @@ app.get("/track", async (req, res) => {
   }
 });
 
-// Puerto dinámico para Railway/Render
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${port}`);
