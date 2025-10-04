@@ -18,11 +18,9 @@ app.get("/search", async (req, res) => {
   if (!query) return res.json([]);
 
   try {
-    // Usar YouTube Search API pública (sin clave, via ytsearch en npm)
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     const html = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } }).then(r => r.data);
 
-    // Extraer primeros videos usando regex
     const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})","thumbnail"/g;
     const titleRegex = /"title":{"runs":\[\{"text":"(.*?)"\}\]}/g;
 
@@ -34,7 +32,7 @@ app.get("/search", async (req, res) => {
         url: `https://www.youtube.com/watch?v=${matchVideo[1]}`,
         type: "track"
       });
-      if (results.length >= 10) break; // Limitar resultados
+      if (results.length >= 10) break;
     }
 
     res.json(results);
