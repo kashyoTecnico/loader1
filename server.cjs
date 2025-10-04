@@ -2,19 +2,16 @@
 const express = require("express");
 const cors = require("cors");
 const ytdl = require("ytdl-core");
-const ytdlDiscord = require("ytdl-core-discord"); // ✅ Mejor compatibilidad en servidores
 const axios = require("axios");
 
 const app = express();
 app.use(cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"] }));
 app.use(express.json());
 
-// 🔹 Ruta principal
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
-// 🔹 Buscar videos
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -41,7 +38,7 @@ app.get("/search", async (req, res) => {
           author: v.ownerText.runs[0].text,
           duration: v.lengthText ? v.lengthText.simpleText : "0:00",
           image: v.thumbnail.thumbnails.slice(-1)[0]?.url || "",
-          url: `/track?id=${v.videoId}` // Flutter llamará a esto
+          url: `/track?id=${v.videoId}`
         };
       });
 
@@ -52,17 +49,16 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔹 Obtener URL directa de audio
 app.get("/track", async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).json({ error: "No video ID provided" });
 
   try {
-    const url = `https://www.youtube.com/watch?v=${videoId}`;
-    const info = await ytdl.getInfo(url);
+    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+    const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
+    if (!audioFormats.length) return res.status(404).json({ error: "No audio formats found" });
 
-    // Usamos ytdl-core-discord para obtener link reproducible en cualquier servidor
-    const audioUrl = await ytdlDiscord(url, { quality: "highestaudio" });
+    const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
     res.json({
       id: videoId,
@@ -70,14 +66,13 @@ app.get("/track", async (req, res) => {
       author: info.videoDetails.author.name,
       duration: info.videoDetails.lengthSeconds,
       image: info.videoDetails.thumbnails.slice(-1)[0]?.url || "",
-      audioUrl // ✅ URL segura para Flutter
+      audioUrl: bestAudio.url
     });
   } catch (err) {
-    console.error("Error obteniendo track:", err);
+    console.error("Error obteniendo track:", err.message);
     res.status(500).json({ error: "Failed to fetch track audio" });
   }
 });
 
-// 🔹 Iniciar servidor
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => console.log(`✅ Server running on port ${port}`));
