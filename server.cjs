@@ -2,47 +2,39 @@
 const express = require("express");
 const cors = require("cors");
 const ytdl = require("ytdl-core");
-const axios = require("axios");
+const yts = require("yt-search");
 
 const app = express();
 app.use(cors());
 
-// Test root
+// Test de conexión
 app.get("/", (req, res) => {
-  res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
+  res.json({ status: "ok", message: "Servidor Musikfy activo con YouTube 🚀" });
 });
 
-// Buscar videos (YouTube Search)
+// Buscar canciones por nombre o artista
 app.get("/search", async (req, res) => {
   const query = req.query.q;
-  if (!query) return res.json([]);
+  if (!query) return res.status(400).json({ error: "No query provided" });
 
   try {
-    const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const html = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } }).then(r => r.data);
+    const result = await yts(query);
+    const videos = result.videos.slice(0, 10).map(v => ({
+      title: v.title,
+      url: v.url,
+      image: v.thumbnail,
+      duration: v.timestamp,
+      author: v.author.name
+    }));
 
-    const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})","thumbnail"/g;
-    const titleRegex = /"title":{"runs":\[\{"text":"(.*?)"\}\]}/g;
-
-    const results = [];
-    let matchVideo, matchTitle;
-    while ((matchVideo = videoRegex.exec(html)) && (matchTitle = titleRegex.exec(html))) {
-      results.push({
-        title: matchTitle[1],
-        url: `https://www.youtube.com/watch?v=${matchVideo[1]}`,
-        type: "track"
-      });
-      if (results.length >= 10) break;
-    }
-
-    res.json(results);
+    res.json(videos);
   } catch (err) {
-    console.error("Error en búsqueda:", err.message);
-    res.status(500).json({ error: "Failed to fetch search results" });
+    console.error("Error buscando canciones:", err.message);
+    res.status(500).json({ error: "Error fetching search results" });
   }
 });
 
-// Obtener info y link de audio
+// Obtener información y enlace directo al audio
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
@@ -55,15 +47,17 @@ app.get("/track", async (req, res) => {
     res.json({
       title: info.videoDetails.title,
       url: bestAudio,
-      image: info.videoDetails.thumbnails.pop().url
+      image: info.videoDetails.thumbnails.pop().url,
+      author: info.videoDetails.author.name,
+      lengthSeconds: info.videoDetails.lengthSeconds
     });
   } catch (err) {
     console.error("Error obteniendo track:", err.message);
-    res.status(500).json({ error: "Failed to fetch track" });
+    res.status(500).json({ error: "Error fetching track info" });
   }
 });
 
-// Puerto dinámico para Render
+// Puerto para Render
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${port}`);
