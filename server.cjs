@@ -12,41 +12,38 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
-// 🔹 Buscar videos (YouTube Search)
+// 🔹 Buscar videos (YouTube Search estilo ytify)
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
 
   try {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const { data: html } = await axios.get(searchUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
+    const { data: html } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
 
-    // Extraer JSON de ytInitialData
-    const ytInitialDataMatch = html.match(/var ytInitialData = (.*?);<\/script>/);
-    if (!ytInitialDataMatch) return res.json([]);
+    // Extraer ytInitialData
+    const match = html.match(/var ytInitialData = (.*?);<\/script>/);
+    if (!match) return res.json([]);
 
-    const ytInitialData = JSON.parse(ytInitialDataMatch[1]);
+    const ytData = JSON.parse(match[1]);
 
-    const videos = [];
-    const contents = ytInitialData.contents.twoColumnSearchResultsRenderer.primaryContents
+    const items = ytData.contents.twoColumnSearchResultsRenderer.primaryContents
       .sectionListRenderer.contents[0].itemSectionRenderer.contents;
 
-    for (const item of contents) {
-      if (item.videoRenderer) {
-        const video = item.videoRenderer;
-        videos.push({
-          title: video.title.runs[0].text,
-          url: `https://www.youtube.com/watch?v=${video.videoId}`,
-          image: video.thumbnail.thumbnails.pop().url,
-          duration: video.lengthText ? video.lengthText.simpleText : "0:00",
-          author: video.ownerText.runs[0].text,
-          type: "track"
-        });
-      }
-      if (videos.length >= 10) break; // máximo 10 resultados
-    }
+    const videos = items
+      .filter(i => i.videoRenderer)
+      .slice(0, 10) // máximo 10 resultados
+      .map(i => {
+        const v = i.videoRenderer;
+        return {
+          id: v.videoId,
+          title: v.title.runs[0].text,
+          author: v.ownerText.runs[0].text,
+          duration: v.lengthText ? v.lengthText.simpleText : "0:00",
+          thumbnail: v.thumbnail.thumbnails.pop().url,
+          url: `/track?id=${v.videoId}` // aquí apuntamos al endpoint de audio
+        };
+      });
 
     res.json(videos);
   } catch (err) {
@@ -55,43 +52,30 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔹 Obtener info y link de audio con fallback y manejo 410
+// 🔹 Obtener URL directa de audio de YouTube
 app.get("/track", async (req, res) => {
-  const href = req.query.url;
-  if (!href) return res.status(400).json({ error: "No URL provided" });
+  const videoId = req.query.id;
+  if (!videoId) return res.status(400).json({ error: "No video ID provided" });
 
   try {
-    const info = await ytdl.getInfo(href);
+    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
-
-    // Intentar itag 140, luego webm, finalmente cualquier audio disponible
-    const bestAudio =
-      audioFormats.find(f => f.itag === 140) ||
-      audioFormats.find(f => f.container === "webm") ||
-      audioFormats[0];
-
-    if (!bestAudio) {
-      console.warn("No audio disponible para:", href);
-      return res.status(410).json({ error: "Audio no disponible" });
-    }
+    const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
     res.json({
       title: info.videoDetails.title,
-      url: bestAudio.url,
-      image: info.videoDetails.thumbnails.pop().url,
       author: info.videoDetails.author.name,
-      duration: info.videoDetails.lengthSeconds
+      duration: info.videoDetails.lengthSeconds,
+      image: info.videoDetails.thumbnails.pop().url,
+      audioUrl: bestAudio.url
     });
   } catch (err) {
     console.error("Error obteniendo track:", err.message);
-    if (err.message.includes("410") || err.message.includes("Video unavailable")) {
-      return res.status(410).json({ error: "Track no disponible en YouTube" });
-    }
-    res.status(500).json({ error: "Failed to fetch track" });
+    res.status(500).json({ error: "Failed to fetch track audio" });
   }
 });
 
-// Puerto dinámico para Render
+// Puerto dinámico
 const port = process.env.PORT || 8080;
 app.listen(port, "0.0.0.0", () => {
   console.log(`✅ Server running on port ${port}`);
