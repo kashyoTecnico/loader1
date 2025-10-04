@@ -12,7 +12,7 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
-// 🔹 Buscar videos (YouTube Search) – versión corregida
+// 🔹 Buscar videos (YouTube Search)
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -55,17 +55,25 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔹 Obtener info y link de audio
+// 🔹 Obtener info y link de audio con fallback y manejo 410
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
 
   try {
     const info = await ytdl.getInfo(href);
-
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
 
-    const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
+    // Intentar itag 140, luego webm, finalmente cualquier audio disponible
+    const bestAudio =
+      audioFormats.find(f => f.itag === 140) ||
+      audioFormats.find(f => f.container === "webm") ||
+      audioFormats[0];
+
+    if (!bestAudio) {
+      console.warn("No audio disponible para:", href);
+      return res.status(410).json({ error: "Audio no disponible" });
+    }
 
     res.json({
       title: info.videoDetails.title,
@@ -76,6 +84,9 @@ app.get("/track", async (req, res) => {
     });
   } catch (err) {
     console.error("Error obteniendo track:", err.message);
+    if (err.message.includes("410") || err.message.includes("Video unavailable")) {
+      return res.status(410).json({ error: "Track no disponible en YouTube" });
+    }
     res.status(500).json({ error: "Failed to fetch track" });
   }
 });
