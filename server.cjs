@@ -56,7 +56,12 @@ app.get("/track", async (req, res) => {
 
   try {
     const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+
+    // Filtrar formatos de audio y escoger uno reproducible
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
+    if (!audioFormats.length) throw new Error("No audio formats found");
+
+    // Preferimos itag 140 (m4a) si existe, sino cualquier audio
     const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
     res.json({
@@ -65,7 +70,7 @@ app.get("/track", async (req, res) => {
       author: info.videoDetails.author.name,
       duration: info.videoDetails.lengthSeconds,
       image: info.videoDetails.thumbnails.pop().url,
-      audioUrl: bestAudio.url // <-- URL de audio reproducible
+      audioUrl: bestAudio.url
     });
   } catch (err) {
     console.error("Error obteniendo track:", err.message);
