@@ -12,13 +12,16 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
+// 🔹 Buscar videos
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
 
   try {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const { data: html } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
+    const { data: html } = await axios.get(searchUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
 
     const match = html.match(/var ytInitialData = (.*?);<\/script>/s);
     if (!match || !match[1]) return res.json([]);
@@ -49,14 +52,24 @@ app.get("/search", async (req, res) => {
   }
 });
 
+// 🔹 Obtener URL directa de audio
 app.get("/track", async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).json({ error: "No video ID provided" });
 
   try {
-    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
+    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`, {
+      requestOptions: {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
+            "(KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
+        }
+      }
+    });
+
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
-    if (!audioFormats.length) return res.status(404).json({ error: "No audio formats found" });
+    if (!audioFormats.length) throw new Error("No audio formats found");
 
     const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
