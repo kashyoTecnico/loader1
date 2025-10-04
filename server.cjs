@@ -1,17 +1,16 @@
-// server.cjs
 const express = require("express");
 const cors = require("cors");
 const ytdl = require("ytdl-core");
 const axios = require("axios");
 
 const app = express();
-app.use(cors());
+app.use(cors({ origin: "*", methods: ["GET", "POST", "OPTIONS"] }));
+app.use(express.json());
 
 app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
-// 🔹 Buscar videos
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
@@ -20,8 +19,8 @@ app.get("/search", async (req, res) => {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
     const { data: html } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
 
-    const match = html.match(/var ytInitialData = (.*?);<\/script>/);
-    if (!match) return res.json([]);
+    const match = html.match(/var ytInitialData = (.*?);<\/script>/s);
+    if (!match || !match[1]) return res.json([]);
 
     const ytData = JSON.parse(match[1]);
     const items = ytData.contents.twoColumnSearchResultsRenderer.primaryContents
@@ -37,8 +36,8 @@ app.get("/search", async (req, res) => {
           title: v.title.runs[0].text,
           author: v.ownerText.runs[0].text,
           duration: v.lengthText ? v.lengthText.simpleText : "0:00",
-          image: v.thumbnail.thumbnails.pop().url,
-          url: `/track?id=${v.videoId}` // Flutter llamará a esto para obtener audioUrl
+          image: v.thumbnail.thumbnails.slice(-1)[0]?.url || "",
+          url: `/track?id=${v.videoId}`
         };
       });
 
@@ -49,19 +48,15 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔹 Obtener URL directa de audio
 app.get("/track", async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).json({ error: "No video ID provided" });
 
   try {
     const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
-
-    // Filtrar formatos de audio y escoger uno reproducible
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
-    if (!audioFormats.length) throw new Error("No audio formats found");
+    if (!audioFormats || audioFormats.length === 0) return res.status(404).json({ error: "No audio formats found" });
 
-    // Preferimos itag 140 (m4a) si existe, sino cualquier audio
     const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
     res.json({
@@ -69,7 +64,7 @@ app.get("/track", async (req, res) => {
       title: info.videoDetails.title,
       author: info.videoDetails.author.name,
       duration: info.videoDetails.lengthSeconds,
-      image: info.videoDetails.thumbnails.pop().url,
+      image: info.videoDetails.thumbnails.slice(-1)[0]?.url || "",
       audioUrl: bestAudio.url
     });
   } catch (err) {
@@ -79,6 +74,4 @@ app.get("/track", async (req, res) => {
 });
 
 const port = process.env.PORT || 8080;
-app.listen(port, "0.0.0.0", () => {
-  console.log(`✅ Server running on port ${port}`);
-});
+app.listen(port, "0.0.0.0", () => console.log(`✅ Server running on port ${port}`));
