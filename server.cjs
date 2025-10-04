@@ -19,9 +19,7 @@ app.get("/search", async (req, res) => {
 
   try {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const { data: html } = await axios.get(searchUrl, {
-      headers: { "User-Agent": "Mozilla/5.0" }
-    });
+    const { data: html } = await axios.get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } });
 
     const match = html.match(/var ytInitialData = (.*?);<\/script>/s);
     if (!match || !match[1]) return res.json([]);
@@ -52,35 +50,22 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔹 Obtener URL directa de audio
+// 🔹 Obtener y reproducir audio como stream
 app.get("/track", async (req, res) => {
   const videoId = req.query.id;
   if (!videoId) return res.status(400).json({ error: "No video ID provided" });
 
   try {
-    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`, {
-      requestOptions: {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
-            "(KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36"
-        }
-      }
-    });
-
+    const info = await ytdl.getInfo(`https://www.youtube.com/watch?v=${videoId}`);
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
-    if (!audioFormats.length) throw new Error("No audio formats found");
+    if (!audioFormats.length) return res.status(404).json({ error: "No audio formats found" });
 
     const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
-    res.json({
-      id: videoId,
-      title: info.videoDetails.title,
-      author: info.videoDetails.author.name,
-      duration: info.videoDetails.lengthSeconds,
-      image: info.videoDetails.thumbnails.slice(-1)[0]?.url || "",
-      audioUrl: bestAudio.url
-    });
+    // Servir el audio directamente como stream
+    res.setHeader("Content-Type", "audio/mpeg");
+    ytdl(`https://www.youtube.com/watch?v=${videoId}`, { format: bestAudio }).pipe(res);
+
   } catch (err) {
     console.error("Error obteniendo track:", err.message);
     res.status(500).json({ error: "Failed to fetch track audio" });
