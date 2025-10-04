@@ -12,39 +12,50 @@ app.get("/", (req, res) => {
   res.json({ status: "ok", message: "Servidor Musikfy YouTube activo 🚀" });
 });
 
-// Buscar videos (YouTube Search)
+// 🔹 Buscar videos (YouTube Search) – versión corregida
 app.get("/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.json([]);
 
   try {
     const searchUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
-    const html = await axios
-      .get(searchUrl, { headers: { "User-Agent": "Mozilla/5.0" } })
-      .then((r) => r.data);
+    const { data: html } = await axios.get(searchUrl, {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
 
-    const videoRegex = /"videoId":"([a-zA-Z0-9_-]{11})","thumbnail"/g;
-    const titleRegex = /"title":{"runs":\[\{"text":"(.*?)"\}\]}/g;
+    // Extraer JSON de ytInitialData
+    const ytInitialDataMatch = html.match(/var ytInitialData = (.*?);<\/script>/);
+    if (!ytInitialDataMatch) return res.json([]);
 
-    const results = [];
-    let matchVideo, matchTitle;
-    while ((matchVideo = videoRegex.exec(html)) && (matchTitle = titleRegex.exec(html))) {
-      results.push({
-        title: matchTitle[1],
-        url: `https://www.youtube.com/watch?v=${matchVideo[1]}`,
-        type: "track"
-      });
-      if (results.length >= 10) break;
+    const ytInitialData = JSON.parse(ytInitialDataMatch[1]);
+
+    const videos = [];
+    const contents = ytInitialData.contents.twoColumnSearchResultsRenderer.primaryContents
+      .sectionListRenderer.contents[0].itemSectionRenderer.contents;
+
+    for (const item of contents) {
+      if (item.videoRenderer) {
+        const video = item.videoRenderer;
+        videos.push({
+          title: video.title.runs[0].text,
+          url: `https://www.youtube.com/watch?v=${video.videoId}`,
+          image: video.thumbnail.thumbnails.pop().url,
+          duration: video.lengthText ? video.lengthText.simpleText : "0:00",
+          author: video.ownerText.runs[0].text,
+          type: "track"
+        });
+      }
+      if (videos.length >= 10) break; // máximo 10 resultados
     }
 
-    res.json(results);
+    res.json(videos);
   } catch (err) {
     console.error("Error en búsqueda:", err.message);
     res.status(500).json({ error: "Failed to fetch search results" });
   }
 });
 
-// 🔹 Corregido: Obtener info y link de audio
+// 🔹 Obtener info y link de audio
 app.get("/track", async (req, res) => {
   const href = req.query.url;
   if (!href) return res.status(400).json({ error: "No URL provided" });
@@ -52,10 +63,8 @@ app.get("/track", async (req, res) => {
   try {
     const info = await ytdl.getInfo(href);
 
-    // Filtramos solo audio
     const audioFormats = ytdl.filterFormats(info.formats, "audioonly");
 
-    // Buscar el stream estándar m4a (itag 140), si no, el primero disponible
     const bestAudio = audioFormats.find(f => f.itag === 140) || audioFormats[0];
 
     res.json({
