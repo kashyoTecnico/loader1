@@ -1,72 +1,81 @@
-const express = require('express');
-const fetch = require('node-fetch');
-const cors = require('cors');
-const dotenv = require('dotenv');
-const cheerio = require('cheerio');
+const express = require("express");
+const cors = require("cors");
+const dotenv = require("dotenv");
+const puppeteer = require("puppeteer");
 
 dotenv.config();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.get('/', (req, res) => res.send('Musikfy loader running'));
+app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// Endpoint para obtener canciones
-app.get('/tracks', async (req, res) => {
-  const query = req.query.q || '';
+// Endpoint /tracks? query=...
+app.get("/tracks", async (req, res) => {
+  const query = req.query.q || "";
+  if (!query) return res.status(400).send("Missing search query");
+
+  let browser;
   try {
-    const response = await fetch(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`);
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    browser = await puppeteer.launch({
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      headless: true,
+    });
+    const page = await browser.newPage();
+    await page.goto(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
 
-    const tracks = [];
-    $('.track').each((i, el) => {
-      const title = $(el).find('.title').text().trim();
-      const artist = $(el).find('.artist').text().trim();
-      const audioUrl = $(el).find('audio').attr('src');
+    // Espera que carguen los tracks
+    await page.waitForSelector(".track", { timeout: 10000 });
 
-      if (title && artist && audioUrl) {
-        tracks.push({ title, artist, audioUrl });
-      }
+    const tracks = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll(".track")).map(el => {
+        return {
+          title: el.querySelector(".title")?.innerText || "",
+          artist: el.querySelector(".artist")?.innerText || "",
+          audioUrl: el.querySelector("audio")?.src || ""
+        };
+      }).filter(t => t.audioUrl);
     });
 
     res.json(tracks);
   } catch (err) {
-    console.error('Error fetching tracks:', err);
-    res.status(500).send('Error fetching tracks');
+    console.error("Error fetching tracks:", err);
+    res.status(500).send("Error fetching tracks");
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
 // Proxy para reproducir audio
-app.get('/proxy', async (req, res) => {
+app.get("/proxy", async (req, res) => {
   try {
     const b64 = req.query.url;
-    if (!b64) return res.status(400).send('Missing url param');
-    const url = Buffer.from(b64, 'base64').toString('utf8');
+    if (!b64) return res.status(400).send("Missing url param");
+    const url = Buffer.from(b64, "base64").toString("utf8");
 
+    const fetch = (await import("node-fetch")).default;
     const forwardHeaders = {};
-    if (req.headers.range) forwardHeaders['range'] = req.headers.range;
-    if (req.headers['user-agent']) forwardHeaders['user-agent'] = req.headers['user-agent'];
-    if (req.headers['accept']) forwardHeaders['accept'] = req.headers['accept'];
+    if (req.headers.range) forwardHeaders["range"] = req.headers.range;
+    if (req.headers["user-agent"]) forwardHeaders["user-agent"] = req.headers["user-agent"];
+    if (req.headers["accept"]) forwardHeaders["accept"] = req.headers["accept"];
 
     const upstreamResp = await fetch(url, { headers: forwardHeaders });
     res.status(upstreamResp.status);
 
-    const ct = upstreamResp.headers.get('content-type');
-    const cl = upstreamResp.headers.get('content-length');
-    const accRanges = upstreamResp.headers.get('accept-ranges');
-    const range = upstreamResp.headers.get('content-range');
+    const ct = upstreamResp.headers.get("content-type");
+    const cl = upstreamResp.headers.get("content-length");
+    const accRanges = upstreamResp.headers.get("accept-ranges");
+    const range = upstreamResp.headers.get("content-range");
 
-    if (ct) res.setHeader('content-type', ct);
-    if (cl) res.setHeader('content-length', cl);
-    if (accRanges) res.setHeader('accept-ranges', accRanges);
-    if (range) res.setHeader('content-range', range);
+    if (ct) res.setHeader("content-type", ct);
+    if (cl) res.setHeader("content-length", cl);
+    if (accRanges) res.setHeader("accept-ranges", accRanges);
+    if (range) res.setHeader("content-range", range);
 
     upstreamResp.body.pipe(res);
   } catch (err) {
-    console.error('Proxy error:', err);
-    res.status(500).send('Proxy error');
+    console.error("Proxy error:", err);
+    res.status(500).send("Proxy error");
   }
 });
 
