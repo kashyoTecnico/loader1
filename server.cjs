@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const puppeteer = require("puppeteer"); // volver a Puppeteer completo
+const puppeteer = require("puppeteer"); // Puppeteer completo
 
 dotenv.config();
 const app = express();
@@ -10,7 +10,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// /tracks?q=...
+// Endpoint /tracks?q=...
 app.get("/tracks", async (req, res) => {
   const query = req.query.q || "";
   if (!query) return res.status(400).send("Missing search query");
@@ -23,18 +23,21 @@ app.get("/tracks", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.goto(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
+    await page.goto(
+      `https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`,
+      { waitUntil: "networkidle2" }
+    );
     await page.waitForSelector(".track", { timeout: 15000 });
 
-    const tracks = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll(".track"))
-        .map(el => ({
+    const tracks = await page.evaluate(() =>
+      Array.from(document.querySelectorAll(".track"))
+        .map((el) => ({
           title: el.querySelector(".title")?.innerText || "",
           artist: el.querySelector(".artist")?.innerText || "",
-          audioUrl: el.querySelector("audio")?.src || ""
+          audioUrl: el.querySelector("audio")?.src || "",
         }))
-        .filter(t => t.audioUrl);
-    });
+        .filter((t) => t.audioUrl)
+    );
 
     res.json(tracks);
   } catch (err) {
@@ -56,7 +59,7 @@ app.get("/proxy", async (req, res) => {
     const forwardHeaders = {};
     if (req.headers.range) forwardHeaders["range"] = req.headers.range;
     if (req.headers["user-agent"]) forwardHeaders["user-agent"] = req.headers["user-agent"];
-    if (req.headers["accept"]) forwardHeaders["accept"] = req.headers["accept"];
+    if (req.headers.accept) forwardHeaders["accept"] = req.headers.accept;
 
     const upstreamResp = await fetch(url, { headers: forwardHeaders });
     res.status(upstreamResp.status);
