@@ -1,36 +1,44 @@
+// server.cjs
 const express = require('express');
-const fetch = require('node-fetch');
 const cors = require('cors');
 const dotenv = require('dotenv');
-const cheerio = require('cheerio'); // Asegúrate de instalar cheerio
+const puppeteer = require('puppeteer'); // Instalar puppeteer
+const fetch = require('node-fetch');
 
 dotenv.config();
-
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('Musikfy loader running'));
 
-// Endpoint para obtener las canciones
+// Endpoint para scrapear Ytify dinámicamente
 app.get('/tracks', async (req, res) => {
   try {
-    const response = await fetch('https://ytify.netlify.app/search');
-    const html = await response.text();
-    const $ = cheerio.load(html);
+    const searchQuery = req.query.q || ''; // Permite buscar algo
+    const url = `https://ytify.netlify.app/search?q=${encodeURIComponent(searchQuery)}`;
 
-    const tracks = [];
-    $('.track').each((i, el) => {
-      const title = $(el).find('.title').text().trim();
-      const artist = $(el).find('.artist').text().trim();
-      const audioUrl = $(el).find('audio').attr('src');
+    const browser = await puppeteer.launch({ args: ['--no-sandbox'] });
+    const page = await browser.newPage();
+    await page.goto(url, { waitUntil: 'networkidle2' });
 
-      if (title && artist && audioUrl) {
-        tracks.push({ title, artist, audioUrl });
-      }
+    // Aquí extraemos los tracks que la web carga dinámicamente
+    const tracks = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('.track-item')).map(el => {
+        const titleEl = el.querySelector('.track-title');
+        const artistEl = el.querySelector('.track-artist');
+        const audioEl = el.querySelector('audio');
+
+        return {
+          title: titleEl ? titleEl.textContent.trim() : '',
+          artist: artistEl ? artistEl.textContent.trim() : '',
+          audioUrl: audioEl ? audioEl.src : ''
+        };
+      });
     });
 
-    res.json(tracks);
+    await browser.close();
+    res.json(tracks.filter(t => t.title && t.audioUrl)); // solo tracks válidos
   } catch (err) {
     console.error('Error scraping tracks:', err);
     res.status(500).send('Error fetching tracks');
