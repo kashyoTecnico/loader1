@@ -1,31 +1,32 @@
 import express from "express";
 import ytdl from "ytdl-core";
-import cors from "cors";
 
 const app = express();
-app.use(cors());
 
-app.get("/track", async (req, res) => {
+app.get("/api/audio", async (req, res) => {
   try {
-    const videoId = req.query.id;
-    if (!videoId) return res.status(400).json({ error: "Missing video ID" });
+    const videoUrl = req.query.url;
+    if (!videoUrl) return res.status(400).send("Falta parámetro 'url'");
 
-    const info = await ytdl.getInfo(videoId);
-    const format = ytdl.chooseFormat(info.formats, { quality: "highestaudio" });
+    // Obtener información del video
+    const info = await ytdl.getInfo(videoUrl);
+    
+    // Buscar el stream de audio de mejor calidad (Opus/webm)
+    const format = ytdl.chooseFormat(info.formats, {
+      filter: "audioonly",
+      quality: "highestaudio"
+    });
 
-    const data = {
+    res.json({
       title: info.videoDetails.title,
-      artist: info.videoDetails.author.name,
-      thumbnail: info.videoDetails.thumbnails[info.videoDetails.thumbnails.length - 1].url,
-      audio: format.url,
-    };
+      audioUrl: format.url
+    });
 
-    res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Failed to fetch track audio" });
+    res.status(500).send("Error al obtener el audio");
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log("Server running on port " + PORT));
+app.listen(PORT, () => console.log(`Server en puerto ${PORT}`));
