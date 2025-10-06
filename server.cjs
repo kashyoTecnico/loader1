@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const puppeteer = require("puppeteer-core"); // ahora core
+const puppeteer = require("puppeteer"); // volver a Puppeteer completo
 
 dotenv.config();
 const app = express();
@@ -10,24 +10,21 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// Endpoint /tracks? query=...
+// /tracks?q=...
 app.get("/tracks", async (req, res) => {
   const query = req.query.q || "";
   if (!query) return res.status(400).send("Missing search query");
 
   let browser;
   try {
-    // Usar el Chromium de Render
     browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium-browser",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
       headless: true,
     });
 
     const page = await browser.newPage();
     await page.goto(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
-
-    await page.waitForSelector(".track", { timeout: 10000 });
+    await page.waitForSelector(".track", { timeout: 15000 });
 
     const tracks = await page.evaluate(() => {
       return Array.from(document.querySelectorAll(".track"))
@@ -81,7 +78,7 @@ app.get("/proxy", async (req, res) => {
   }
 });
 
-// Mantener vivo cada 10 minutos
+// Ping cada 10 minutos para mantenerse vivo
 setInterval(async () => {
   try {
     const fetch = (await import("node-fetch")).default;
