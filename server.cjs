@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer-core"); // ahora core
 
 dotenv.config();
 const app = express();
@@ -17,24 +17,26 @@ app.get("/tracks", async (req, res) => {
 
   let browser;
   try {
+    // Usar el Chromium de Render
     browser = await puppeteer.launch({
+      executablePath: "/usr/bin/chromium-browser",
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
       headless: true,
     });
+
     const page = await browser.newPage();
     await page.goto(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
 
-    // Espera que carguen los tracks
     await page.waitForSelector(".track", { timeout: 10000 });
 
     const tracks = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll(".track")).map(el => {
-        return {
+      return Array.from(document.querySelectorAll(".track"))
+        .map(el => ({
           title: el.querySelector(".title")?.innerText || "",
           artist: el.querySelector(".artist")?.innerText || "",
           audioUrl: el.querySelector("audio")?.src || ""
-        };
-      }).filter(t => t.audioUrl);
+        }))
+        .filter(t => t.audioUrl);
     });
 
     res.json(tracks);
@@ -46,7 +48,7 @@ app.get("/tracks", async (req, res) => {
   }
 });
 
-// Proxy para reproducir audio
+// Proxy
 app.get("/proxy", async (req, res) => {
   try {
     const b64 = req.query.url;
@@ -78,6 +80,17 @@ app.get("/proxy", async (req, res) => {
     res.status(500).send("Proxy error");
   }
 });
+
+// Mantener vivo cada 10 minutos
+setInterval(async () => {
+  try {
+    const fetch = (await import("node-fetch")).default;
+    await fetch(`http://localhost:${process.env.PORT || 10000}/`);
+    console.log("Self-pinged to stay alive");
+  } catch (err) {
+    console.error("Self-ping failed:", err);
+  }
+}, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Musikfy loader listening on ${PORT}`));
