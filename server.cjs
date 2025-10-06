@@ -5,28 +5,26 @@ const dotenv = require('dotenv');
 const cheerio = require('cheerio');
 
 dotenv.config();
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 app.get('/', (req, res) => res.send('Musikfy loader running'));
 
-// Endpoint para buscar tracks
+// Endpoint para obtener canciones
 app.get('/tracks', async (req, res) => {
+  const query = req.query.q || '';
   try {
-    const query = req.query.q;
-    if (!query) return res.status(400).send('Missing query param');
-
     const response = await fetch(`https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`);
     const html = await response.text();
     const $ = cheerio.load(html);
 
     const tracks = [];
-
-    $('.track-card').each((i, el) => {
-      const title = $(el).find('.track-title').text().trim();
-      const artist = $(el).find('.track-artist').text().trim();
-      const audioUrl = $(el).find('audio').attr('src'); // Aquí sacamos el src real
+    $('.track').each((i, el) => {
+      const title = $(el).find('.title').text().trim();
+      const artist = $(el).find('.artist').text().trim();
+      const audioUrl = $(el).find('audio').attr('src');
 
       if (title && artist && audioUrl) {
         tracks.push({ title, artist, audioUrl });
@@ -35,7 +33,7 @@ app.get('/tracks', async (req, res) => {
 
     res.json(tracks);
   } catch (err) {
-    console.error('Error scraping tracks:', err);
+    console.error('Error fetching tracks:', err);
     res.status(500).send('Error fetching tracks');
   }
 });
