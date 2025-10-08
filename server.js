@@ -2,73 +2,69 @@ import express from "express";
 import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
+import { JSDOM } from "jsdom";
 
 dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Render asigna el puerto automáticamente
-const PORT = process.env.PORT;
-if (!PORT) throw new Error("⚠️ El PORT no está definido en env");
+const PORT = process.env.PORT || 10000;
 
-console.log(`🔹 PORT usado: ${PORT}`);
-
-// ✅ Ruta de prueba
+// Ruta principal
 app.get("/", (req, res) => {
-  res.send("✅ Musikfy Server funcionando correctamente.");
+  res.send("✅ Musikfy Server funcionando con y2mate.best");
 });
 
-// ✅ Endpoint para buscar canciones o videos
+// Endpoint de búsqueda
 app.get("/api/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "Falta parámetro ?q=" });
 
   try {
-    const response = await fetch(
-      `https://pipedapi.kavin.rocks/search?q=${encodeURIComponent(query)}`
-    );
-    const data = await response.json();
+    const url = `https://y2mate.best/search/?query=${encodeURIComponent(query)}`;
+    const html = await (await fetch(url)).text();
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
 
-    const results = data.items
-      .filter((item) => item.type === "video")
-      .map((item) => ({
-        id: item.id,
-        title: item.title,
-        thumbnail: item.thumbnail,
-        author: item.uploader,
-        duration: item.duration,
-      }));
+    const items = Array.from(document.querySelectorAll(".search-result-item")).map(el => {
+      return {
+        id: el.querySelector("a")?.href.split("/").pop(),
+        title: el.querySelector(".title")?.textContent,
+        thumbnail: el.querySelector("img")?.src,
+        author: el.querySelector(".channel")?.textContent,
+      };
+    });
 
-    res.json({ results });
+    res.json({ results: items });
   } catch (err) {
     console.error("Error en búsqueda:", err);
     res.status(500).json({ error: "No se pudo obtener resultados." });
   }
 });
 
-// ✅ Endpoint para obtener URL directa de descarga o streaming
+// Endpoint para obtener enlace de descarga MP3
 app.get("/api/download/:id", async (req, res) => {
   const { id } = req.params;
-
   try {
-    const response = await fetch(`https://pipedapi.kavin.rocks/streams/${id}`);
-    const data = await response.json();
+    const url = `https://y2mate.best/watch/${id}`;
+    const html = await (await fetch(url)).text();
+    const dom = new JSDOM(html);
+    const document = dom.window.document;
+
+    const button = document.querySelector("button.y2link-download[data-format='mp3']");
+    const downloadUrl = button?.getAttribute("data-attr");
 
     res.json({
-      title: data.title,
-      audio: data.audioStreams?.[0]?.url || null,
-      video: data.videoStreams?.[0]?.url || null,
-      thumbnail: data.thumbnailUrl,
-      duration: data.duration,
+      title: document.querySelector("h1.title")?.textContent,
+      audio: downloadUrl || null,
     });
   } catch (err) {
-    console.error("Error obteniendo stream:", err);
+    console.error("Error obteniendo descarga:", err);
     res.status(500).json({ error: "No se pudo obtener el enlace de descarga." });
   }
 });
 
-// ✅ Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🎧 Musikfy server corriendo en puerto ${PORT}`);
 });
