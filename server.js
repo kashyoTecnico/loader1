@@ -8,7 +8,11 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+// Render asigna el puerto automáticamente
+const PORT = process.env.PORT;
+if (!PORT) throw new Error("⚠️ El PORT no está definido en env");
+
+console.log(`🔹 PORT usado: ${PORT}`);
 
 // ✅ Ruta de prueba
 app.get("/", (req, res) => {
@@ -64,6 +68,7 @@ app.get("/api/download/:id", async (req, res) => {
   }
 });
 
+// ✅ Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🎧 Musikfy server corriendo en puerto ${PORT}`);
 });
