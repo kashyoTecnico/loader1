@@ -1,9 +1,8 @@
-// server.js
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio"; // <-- CORRECCIÓN
 
 dotenv.config();
 const app = express();
@@ -17,16 +16,13 @@ app.get("/", (req, res) => {
   res.send("✅ Musikfy Server funcionando correctamente.");
 });
 
-// Endpoint de búsqueda de canciones
+// Endpoint de búsqueda
 app.get("/api/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "Falta parámetro ?q=" });
 
   try {
-    const searchUrl = `https://y2mate.best/search/?query=${encodeURIComponent(
-      query
-    )}`;
-
+    const searchUrl = `https://y2mate.best/search/?query=${encodeURIComponent(query)}`;
     const { data } = await axios.get(searchUrl);
     const $ = cheerio.load(data);
 
@@ -48,7 +44,7 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-// Endpoint para obtener URL directa de MP3
+// Endpoint de descarga
 app.get("/api/download/:id", async (req, res) => {
   const { id } = req.params;
 
@@ -57,13 +53,13 @@ app.get("/api/download/:id", async (req, res) => {
     const { data } = await axios.get(videoPage);
     const $ = cheerio.load(data);
 
-    // Obtener URL del botón de descarga MP3 320kbps
     const audioButton = $("button.btn-success.y2link-download")
-      .filter((i, el) => $(el).attr("data-note") === "320" && $(el).attr("data-format") === "mp3")
+      .filter((i, el) =>
+        $(el).attr("data-note") === "320" && $(el).attr("data-format") === "mp3"
+      )
       .first();
 
     const audioUrl = audioButton.attr("data-href") || null;
-
     res.json({ audio: audioUrl });
   } catch (err) {
     console.error("Error obteniendo stream:", err);
