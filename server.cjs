@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const puppeteer = require("puppeteer"); // Puppeteer completo
+const puppeteer = require("puppeteer");
 
 dotenv.config();
 const app = express();
@@ -10,7 +10,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// Endpoint /tracks?q=...
+// Nuevo endpoint /tracks con y2mate
 app.get("/tracks", async (req, res) => {
   const query = req.query.q || "";
   if (!query) return res.status(400).send("Missing search query");
@@ -23,23 +23,30 @@ app.get("/tracks", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.goto(
-      `https://ytify.netlify.app/search?q=${encodeURIComponent(query)}`,
-      { waitUntil: "networkidle2" }
-    );
-    await page.waitForSelector(".track", { timeout: 15000 });
+    await page.goto(`https://y2mate.best/search?q=${encodeURIComponent(query)}`, { waitUntil: "networkidle2" });
 
-    const tracks = await page.evaluate(() =>
-      Array.from(document.querySelectorAll(".track"))
-        .map((el) => ({
-          title: el.querySelector(".title")?.innerText || "",
-          artist: el.querySelector(".artist")?.innerText || "",
-          audioUrl: el.querySelector("audio")?.src || "",
-        }))
-        .filter((t) => t.audioUrl)
-    );
+    // Espera que carguen los resultados
+    await page.waitForSelector(".card-wrap", { timeout: 15000 });
+
+    const tracks = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll(".card-wrap")).map(el => {
+        const titleEl = el.querySelector(".card-title");
+        const artistEl = el.querySelector(".card-subtitle");
+        const imgEl = el.querySelector("img");
+        const downloadBtn = el.querySelector(".submit_video");
+        const downloadLink = downloadBtn ? downloadBtn.getAttribute("data-href") : "";
+
+        return {
+          title: titleEl?.innerText || "",
+          artist: artistEl?.innerText || "",
+          image: imgEl?.src || "",
+          downloadUrl: downloadLink || ""
+        };
+      }).filter(t => t.downloadUrl);
+    });
 
     res.json(tracks);
+
   } catch (err) {
     console.error("Error fetching tracks:", err);
     res.status(500).send("Error fetching tracks");
@@ -48,7 +55,7 @@ app.get("/tracks", async (req, res) => {
   }
 });
 
-// Proxy
+// Proxy (igual que antes)
 app.get("/proxy", async (req, res) => {
   try {
     const b64 = req.query.url;
@@ -81,7 +88,7 @@ app.get("/proxy", async (req, res) => {
   }
 });
 
-// Ping cada 5 minutos para mantenerse vivo
+// Self-ping cada 10 minutos
 setInterval(async () => {
   try {
     const fetch = (await import("node-fetch")).default;
@@ -90,7 +97,7 @@ setInterval(async () => {
   } catch (err) {
     console.error("Self-ping failed:", err);
   }
-}, 10 * 60 * 500);
+}, 10 * 60 * 1000);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Musikfy loader listening on ${PORT}`));
