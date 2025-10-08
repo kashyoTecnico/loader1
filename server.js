@@ -11,19 +11,17 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// ✅ Ruta de prueba
 app.get("/", (req, res) => {
-  res.send("✅ Musikfy Server funcionando correctamente.");
+  res.send("🎧 Musikfy server funcionando.");
 });
 
-// ✅ Buscar videos
+// Buscar videos
 app.get("/api/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "Falta parámetro ?q=" });
 
   try {
-    const response = await fetch(`https://y2mate.best/search/?query=${encodeURIComponent(query)}`);
-    const html = await response.text();
+    const html = await fetch(`https://y2mate.best/search/?query=${encodeURIComponent(query)}`).then(r => r.text());
     const $ = cheerio.load(html);
 
     const results = [];
@@ -33,7 +31,6 @@ app.get("/api/search", async (req, res) => {
       const thumbnail = $(el).find("img").attr("src");
       const author = $(el).find(".video-channel").text().trim();
       const duration = $(el).find(".video-duration").text().trim();
-
       results.push({ id, title, thumbnail, author, duration });
     });
 
@@ -44,22 +41,19 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
-// ✅ Obtener enlace de audio
+// Obtener audio
 app.get("/api/download/:id", async (req, res) => {
   const { id } = req.params;
-
   try {
-    const response = await fetch(`https://y2mate.best/ajax/download?video=${id}`);
-    const html = await response.text();
+    const html = await fetch(`https://y2mate.best/ajax/download?video=${id}`).then(r => r.text());
     const $ = cheerio.load(html);
-
     const downloadBtn = $(".btn-download-link");
     if (!downloadBtn) return res.json({ audio: null });
 
     const dataBase = downloadBtn.attr("data-base");
     const dataDetails = downloadBtn.attr("data-details");
-
     const audioUrl = `${dataBase}/videoplayback?video=${dataDetails}`;
+
     res.json({ audio: audioUrl });
   } catch (err) {
     console.error(err);
@@ -67,6 +61,4 @@ app.get("/api/download/:id", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`🎧 Musikfy server corriendo en puerto ${PORT}`);
-});
+app.listen(PORT, () => console.log(`🎵 Musikfy server corriendo en puerto ${PORT}`));
