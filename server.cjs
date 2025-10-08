@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const puppeteer = require("puppeteer"); // Puppeteer completo
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 dotenv.config();
 const app = express();
@@ -10,7 +11,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// /tracks?q=...
+// Endpoint /tracks?q=...
 app.get("/tracks", async (req, res) => {
   const query = req.query.q || "";
   if (!query) return res.status(400).send("Missing search query");
@@ -18,32 +19,30 @@ app.get("/tracks", async (req, res) => {
   let browser;
   try {
     browser = await puppeteer.launch({
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
       headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+      executablePath: puppeteer.executablePath() // usa binario descargado
     });
 
     const page = await browser.newPage();
-    await page.goto(`https://y2mate.best/search/?query=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
+    await page.goto(`https://y2mate.best/search/?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
 
-    // Espera que aparezcan los resultados
-    await page.waitForSelector(".card-wrap", { timeout: 15000 });
+    // Espera que carguen los resultados
+    await page.waitForSelector("#gatsby-focus-wrapper > main > div > div.card-wrap.hcardw.m-btm-0", { timeout: 15000 });
 
     const tracks = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll(".card-wrap"))
-        .map(el => {
-          const titleEl = el.querySelector("h3");
-          const artistEl = el.querySelector(".card-subtitle");
-          const downloadBtn = el.querySelector("button.submit_video");
-          return {
-            title: titleEl?.innerText || "No title",
-            artist: artistEl?.innerText || "Unknown",
-            downloadUrl: downloadBtn?.getAttribute("data-url") || "" // Esto depende de cómo y2mate genere el URL
-          };
-        })
-        .filter(t => t.downloadUrl);
+      return Array.from(document.querySelectorAll(".card-wrap.hcardw")).map(el => {
+        return {
+          title: el.querySelector(".title")?.innerText || "",
+          artist: el.querySelector(".artist")?.innerText || "",
+          imgUrl: el.querySelector("img")?.src || "",
+          downloadPage: el.querySelector("a.submit_video")?.getAttribute("href") || ""
+        };
+      });
     });
 
     res.json(tracks);
+
   } catch (err) {
     console.error("Error fetching tracks:", err);
     res.status(500).send("Error fetching tracks");
@@ -52,14 +51,13 @@ app.get("/tracks", async (req, res) => {
   }
 });
 
-// Proxy
+// Proxy para reproducir audio
 app.get("/proxy", async (req, res) => {
   try {
     const b64 = req.query.url;
     if (!b64) return res.status(400).send("Missing url param");
     const url = Buffer.from(b64, "base64").toString("utf8");
 
-    const fetch = (await import("node-fetch")).default;
     const forwardHeaders = {};
     if (req.headers.range) forwardHeaders["range"] = req.headers.range;
     if (req.headers["user-agent"]) forwardHeaders["user-agent"] = req.headers["user-agent"];
@@ -79,6 +77,7 @@ app.get("/proxy", async (req, res) => {
     if (range) res.setHeader("content-range", range);
 
     upstreamResp.body.pipe(res);
+
   } catch (err) {
     console.error("Proxy error:", err);
     res.status(500).send("Proxy error");
@@ -88,7 +87,6 @@ app.get("/proxy", async (req, res) => {
 // Ping cada 10 minutos para mantenerse vivo
 setInterval(async () => {
   try {
-    const fetch = (await import("node-fetch")).default;
     await fetch(`http://localhost:${process.env.PORT || 10000}/`);
     console.log("Self-pinged to stay alive");
   } catch (err) {
