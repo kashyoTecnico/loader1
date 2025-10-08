@@ -1,7 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
-const puppeteer = require("puppeteer");
+const puppeteer = require("puppeteer"); // Puppeteer completo
 
 dotenv.config();
 const app = express();
@@ -10,7 +10,7 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("Musikfy loader running"));
 
-// Nuevo endpoint /tracks con y2mate
+// /tracks?q=...
 app.get("/tracks", async (req, res) => {
   const query = req.query.q || "";
   if (!query) return res.status(400).send("Missing search query");
@@ -23,30 +23,27 @@ app.get("/tracks", async (req, res) => {
     });
 
     const page = await browser.newPage();
-    await page.goto(`https://y2mate.best/search?q=${encodeURIComponent(query)}`, { waitUntil: "networkidle2" });
+    await page.goto(`https://y2mate.best/search/?query=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
 
-    // Espera que carguen los resultados
+    // Espera que aparezcan los resultados
     await page.waitForSelector(".card-wrap", { timeout: 15000 });
 
     const tracks = await page.evaluate(() => {
-      return Array.from(document.querySelectorAll(".card-wrap")).map(el => {
-        const titleEl = el.querySelector(".card-title");
-        const artistEl = el.querySelector(".card-subtitle");
-        const imgEl = el.querySelector("img");
-        const downloadBtn = el.querySelector(".submit_video");
-        const downloadLink = downloadBtn ? downloadBtn.getAttribute("data-href") : "";
-
-        return {
-          title: titleEl?.innerText || "",
-          artist: artistEl?.innerText || "",
-          image: imgEl?.src || "",
-          downloadUrl: downloadLink || ""
-        };
-      }).filter(t => t.downloadUrl);
+      return Array.from(document.querySelectorAll(".card-wrap"))
+        .map(el => {
+          const titleEl = el.querySelector("h3");
+          const artistEl = el.querySelector(".card-subtitle");
+          const downloadBtn = el.querySelector("button.submit_video");
+          return {
+            title: titleEl?.innerText || "No title",
+            artist: artistEl?.innerText || "Unknown",
+            downloadUrl: downloadBtn?.getAttribute("data-url") || "" // Esto depende de cómo y2mate genere el URL
+          };
+        })
+        .filter(t => t.downloadUrl);
     });
 
     res.json(tracks);
-
   } catch (err) {
     console.error("Error fetching tracks:", err);
     res.status(500).send("Error fetching tracks");
@@ -55,7 +52,7 @@ app.get("/tracks", async (req, res) => {
   }
 });
 
-// Proxy (igual que antes)
+// Proxy
 app.get("/proxy", async (req, res) => {
   try {
     const b64 = req.query.url;
@@ -66,7 +63,7 @@ app.get("/proxy", async (req, res) => {
     const forwardHeaders = {};
     if (req.headers.range) forwardHeaders["range"] = req.headers.range;
     if (req.headers["user-agent"]) forwardHeaders["user-agent"] = req.headers["user-agent"];
-    if (req.headers.accept) forwardHeaders["accept"] = req.headers.accept;
+    if (req.headers["accept"]) forwardHeaders["accept"] = req.headers["accept"];
 
     const upstreamResp = await fetch(url, { headers: forwardHeaders });
     res.status(upstreamResp.status);
@@ -88,7 +85,7 @@ app.get("/proxy", async (req, res) => {
   }
 });
 
-// Self-ping cada 10 minutos
+// Ping cada 10 minutos para mantenerse vivo
 setInterval(async () => {
   try {
     const fetch = (await import("node-fetch")).default;
