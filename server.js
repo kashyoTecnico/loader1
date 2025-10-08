@@ -10,12 +10,12 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// Ruta principal de prueba
+// ✅ Ruta de prueba
 app.get("/", (req, res) => {
   res.send("✅ Musikfy Server funcionando correctamente.");
 });
 
-// Endpoint de búsqueda (YouTube → resultados)
+// ✅ Endpoint para buscar canciones o videos
 app.get("/api/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "Falta parámetro ?q=" });
@@ -43,6 +43,27 @@ app.get("/api/search", async (req, res) => {
   }
 });
 
+// ✅ Endpoint para obtener URL directa de descarga o streaming
+app.get("/api/download/:id", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const response = await fetch(`https://pipedapi.kavin.rocks/streams/${id}`);
+    const data = await response.json();
+
+    res.json({
+      title: data.title,
+      audio: data.audioStreams?.[0]?.url || null,
+      video: data.videoStreams?.[0]?.url || null,
+      thumbnail: data.thumbnailUrl,
+      duration: data.duration,
+    });
+  } catch (err) {
+    console.error("Error obteniendo stream:", err);
+    res.status(500).json({ error: "No se pudo obtener el enlace de descarga." });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`🎧 Musikfy server escuchando en puerto ${PORT}`);
+  console.log(`🎧 Musikfy server corriendo en puerto ${PORT}`);
 });
