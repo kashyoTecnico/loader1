@@ -81,7 +81,7 @@ app.get("/proxy", async (req, res) => {
   }
 });
 
-// Ping cada 10 minutos para mantenerse vivo
+// Ping cada 5 minutos para mantenerse vivo
 setInterval(async () => {
   try {
     const fetch = (await import("node-fetch")).default;
@@ -90,7 +90,7 @@ setInterval(async () => {
   } catch (err) {
     console.error("Self-ping failed:", err);
   }
-}, 10 * 60 * 1000);
+}, 10 * 60 * 500);
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`Musikfy loader listening on ${PORT}`));
