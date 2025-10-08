@@ -1,8 +1,8 @@
 import express from "express";
+import fetch from "node-fetch";
 import cors from "cors";
 import dotenv from "dotenv";
-import axios from "axios";
-import * as cheerio from "cheerio"; // <-- CORRECCIÓN
+import cheerio from "cheerio";
 
 dotenv.config();
 const app = express();
@@ -11,59 +11,59 @@ app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
 
-// Ruta de prueba
+// ✅ Ruta de prueba
 app.get("/", (req, res) => {
   res.send("✅ Musikfy Server funcionando correctamente.");
 });
 
-// Endpoint de búsqueda
+// ✅ Buscar videos
 app.get("/api/search", async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: "Falta parámetro ?q=" });
 
   try {
-    const searchUrl = `https://y2mate.best/search/?query=${encodeURIComponent(query)}`;
-    const { data } = await axios.get(searchUrl);
-    const $ = cheerio.load(data);
+    const response = await fetch(`https://y2mate.best/search/?query=${encodeURIComponent(query)}`);
+    const html = await response.text();
+    const $ = cheerio.load(html);
 
     const results = [];
-    $(".item").each((i, el) => {
-      const title = $(el).find(".title").text().trim();
-      const id = $(el).find("a").attr("href")?.split("/video/")[1];
+    $(".video-result-item").each((i, el) => {
+      const title = $(el).find(".video-title").text().trim();
+      const id = $(el).attr("data-video-id");
       const thumbnail = $(el).find("img").attr("src");
-      const author = $(el).find(".channel").text().trim();
-      if (id && title) {
-        results.push({ id, title, thumbnail, author });
-      }
+      const author = $(el).find(".video-channel").text().trim();
+      const duration = $(el).find(".video-duration").text().trim();
+
+      results.push({ id, title, thumbnail, author, duration });
     });
 
     res.json({ results });
   } catch (err) {
-    console.error("Error en búsqueda:", err);
+    console.error(err);
     res.status(500).json({ error: "No se pudo obtener resultados." });
   }
 });
 
-// Endpoint de descarga
+// ✅ Obtener enlace de audio
 app.get("/api/download/:id", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const videoPage = `https://y2mate.best/video/${id}`;
-    const { data } = await axios.get(videoPage);
-    const $ = cheerio.load(data);
+    const response = await fetch(`https://y2mate.best/ajax/download?video=${id}`);
+    const html = await response.text();
+    const $ = cheerio.load(html);
 
-    const audioButton = $("button.btn-success.y2link-download")
-      .filter((i, el) =>
-        $(el).attr("data-note") === "320" && $(el).attr("data-format") === "mp3"
-      )
-      .first();
+    const downloadBtn = $(".btn-download-link");
+    if (!downloadBtn) return res.json({ audio: null });
 
-    const audioUrl = audioButton.attr("data-href") || null;
+    const dataBase = downloadBtn.attr("data-base");
+    const dataDetails = downloadBtn.attr("data-details");
+
+    const audioUrl = `${dataBase}/videoplayback?video=${dataDetails}`;
     res.json({ audio: audioUrl });
   } catch (err) {
-    console.error("Error obteniendo stream:", err);
-    res.status(500).json({ error: "No se pudo obtener el enlace de descarga." });
+    console.error(err);
+    res.status(500).json({ audio: null });
   }
 });
 
