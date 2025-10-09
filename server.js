@@ -35,9 +35,9 @@ app.get("/api/search", async (req, res) => {
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
   const urls = [
-    `${BASE_URL}/en/search/?query=${encodeURIComponent(q)}`,
     `${BASE_URL}/search/?query=${encodeURIComponent(q)}`,
-    `${BASE_URL}/en/search/?q=${encodeURIComponent(q)}`,
+    `${BASE_URL}/search/?query=${encodeURIComponent(q)}`,
+    `${BASE_URL}/search/?q=${encodeURIComponent(q)}`,
     `${BASE_URL}/search/?q=${encodeURIComponent(q)}`,
   ];
 
@@ -97,7 +97,7 @@ app.get("/api/download/:id", async (req, res) => {
 
   const urls = [
     `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`,
-    `${BASE_URL}/en/convert/?videoId=${encodeURIComponent(id)}`,
+    `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`,
   ];
 
   try {
