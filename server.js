@@ -28,9 +28,9 @@ app.get("/", (req, res) =>
 );
 
 /**
- * 🔍 /api/search?q=...
+ * 🔍 /search?q=...
  */
-app.get("/api/search", async (req, res) => {
+app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
@@ -52,18 +52,18 @@ app.get("/api/search", async (req, res) => {
       if (videoId && title) results.push({ videoId, title, thumbnail, duration });
     });
 
-    console.log(`SEARCH q="${q}" url=${url} found=${results.length}`);
+    console.log(` q="${q}" url=${url} found=${results.length}`);
     return res.json({ results });
   } catch (err) {
-    console.error("Error en /api/search:", err.message || err);
+    console.error("Error en /search:", err.message || err);
     return res.status(500).json({ error: "Error al buscar" });
   }
 });
 
 /**
- * 🎧 /api/download/:id
+ * 🎧 /download/:id
  */
-app.get("/api/download/:id", async (req, res) => {
+app.get("/download/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Falta videoId" });
 
@@ -101,7 +101,7 @@ app.get("/api/download/:id", async (req, res) => {
     console.log(`DOWNLOAD id=${id} url=${url} foundAudio=${!!audio}`);
     return res.json({ audio: audio || null });
   } catch (err) {
-    console.error("Error en /api/download:", err.message || err);
+    console.error("Error en /download:", err.message || err);
     return res.status(500).json({ error: "Error al obtener audio" });
   }
 });
