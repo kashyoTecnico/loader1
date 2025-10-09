@@ -1,4 +1,4 @@
-// server.js (ESM sin Puppeteer)
+// server.js (ESM sin Puppeteer, adaptado a y2mate.best)
 import express from "express";
 import axios from "axios";
 import { load } from "cheerio";
@@ -34,53 +34,25 @@ app.get("/api/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
-  const urls = [
-    `${BASE_URL}/search/?query=${encodeURIComponent(q)}`,
-    `${BASE_URL}/search/?query=${encodeURIComponent(q)}`,
-    `${BASE_URL}/search/?q=${encodeURIComponent(q)}`,
-    `${BASE_URL}/search/?q=${encodeURIComponent(q)}`,
-  ];
+  const url = `${BASE_URL}/search/?query=${encodeURIComponent(q)}`;
 
   try {
-    let html = null;
-    let usedUrl = null;
+    const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 15000 });
+    if (!r?.data) return res.json({ results: [] });
 
-    for (const url of urls) {
-      try {
-        const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 15000 });
-        if (r?.status === 200 && r.data && r.data.length > 1000) {
-          html = r.data;
-          usedUrl = url;
-          break;
-        }
-      } catch {}
-    }
-
-    if (!html) return res.json({ results: [] });
-
-    const $ = load(html);
+    const $ = load(r.data);
     const results = [];
 
-    $(".result_form").each((_, el) => {
+    // cada resultado está en form.result_form dentro de col-xs-6
+    $("form.result_form").each((_, el) => {
       const videoId = $(el).find('input[name="videoId"]').val();
-      const title = $(el).find(".search-info h3").text().trim() || $(el).find("h3").text().trim();
-      const thumbnail = $(el).find("img.vi_thumimage").attr("src") || $(el).find("img").attr("src") || "";
-      const duration = $(el).find(".time").text().trim() || "";
+      const title = $(el).find(".search-info h3").text().trim() || "";
+      const thumbnail = $(el).find("img.vi_thumimage").attr("src") || "";
+      const duration = $(el).find(".iwrap span.time").text().trim() || "";
       if (videoId && title) results.push({ videoId, title, thumbnail, duration });
     });
 
-    // fallback tarjetas
-    if (results.length === 0) {
-      $(".col-xs-6, .col-sm-4, .col-md-3").each((_, el) => {
-        const videoId = $(el).find('input[name="videoId"]').val();
-        const title = $(el).find("h3").text().trim();
-        const thumbnail = $(el).find("img").attr("src") || "";
-        const duration = $(el).find(".time").text().trim() || "";
-        if (videoId && title) results.push({ videoId, title, thumbnail, duration });
-      });
-    }
-
-    console.log(`SEARCH q="${q}" used=${usedUrl} found=${results.length}`);
+    console.log(`SEARCH q="${q}" url=${url} found=${results.length}`);
     return res.json({ results });
   } catch (err) {
     console.error("Error en /api/search:", err.message || err);
@@ -95,29 +67,13 @@ app.get("/api/download/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Falta videoId" });
 
-  const urls = [
-    `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`,
-    `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`,
-  ];
+  const url = `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`;
 
   try {
-    let html = null;
-    let usedUrl = null;
+    const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 20000 });
+    if (!r?.data) return res.json({ audio: null });
 
-    for (const url of urls) {
-      try {
-        const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 20000 });
-        if (r?.status === 200 && r.data && r.data.length > 1000) {
-          html = r.data;
-          usedUrl = url;
-          break;
-        }
-      } catch {}
-    }
-
-    if (!html) return res.json({ audio: null });
-
-    const $ = load(html);
+    const $ = load(r.data);
     let audio = null;
 
     // botón 320kbps
@@ -142,7 +98,7 @@ app.get("/api/download/:id", async (req, res) => {
       });
     }
 
-    console.log(`DOWNLOAD id=${id} used=${usedUrl} foundAudio=${!!audio}`);
+    console.log(`DOWNLOAD id=${id} url=${url} foundAudio=${!!audio}`);
     return res.json({ audio: audio || null });
   } catch (err) {
     console.error("Error en /api/download:", err.message || err);
