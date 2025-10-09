@@ -135,7 +135,7 @@ const app = express();
 app.use(cors());
 
 const PORT = process.env.PORT || 10000;
-const BASE_URL = process.env.BASE_URL || "https://www.y2mate.is";
+const BASE_URL = process.env.BASE_URL || "https://www.best";
 
 /**
  * 🧠 1. Endpoint de búsqueda
