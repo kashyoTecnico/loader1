@@ -1,7 +1,7 @@
 {
   "name": "musikfy-loader",
   "version": "1.0.0",
-  "description": "Servidor Musikfy Loader para Flutter usando mp3juice.blog y mp3youtube.cc",
+  "description": "Servidor Musikfy Loader para Flutter",
   "main": "server.js",
   "type": "module",
   "scripts": {
