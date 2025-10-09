@@ -1,4 +1,4 @@
-// server.js (ESM sin Puppeteer, adaptado a y2mate.best)
+// server.js (ESM, integrado con mp3juice.blog y mp3youtube.cc)
 import express from "express";
 import axios from "axios";
 import { load } from "cheerio";
@@ -11,46 +11,48 @@ app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 10000;
-const BASE_URL = process.env.BASE_URL || "https://y2mate.best";
 
+// URLs base
+const BASE_SEARCH = "https://wwd.mp3juice.blog"; // para search
+const BASE_DOWNLOAD = "https://api.mp3youtube.cc/v2/converter"; // para download
+const DOWNLOAD_KEY = "MGI1YzJiYTdjNDI1YzQxOTEyNmZmMDhjYWRlYjFkNzZkZDcxNWUzMjNiMTljN2UzNjZkNDM1MDA1MTZlYjc0OXxNVGMxT1RrNU1EZzVPREEwTkE9PQ==";
+
+// Headers default
 const DEFAULT_HEADERS = {
   "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
   "Accept-Language": "en-US,en;q=0.9",
-  Referer: BASE_URL,
 };
 
 // 🟢 Root
 app.get("/", (req, res) =>
-  res.send("🎵 Musikfy Loader activo usando y2mate.best 🚀")
+  res.send("🎵 Musikfy Loader activo usando mp3juice.blog & mp3youtube.cc 🚀")
 );
 
 /**
  * 🔍 /search?q=...
+ * Busca usando mp3juice.blog
  */
 app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
-  const url = `${BASE_URL}/search/?query=${encodeURIComponent(q)}`;
+  const url = `${BASE_SEARCH}/search.php?q=${encodeURIComponent(q)}`;
 
   try {
     const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 15000 });
     if (!r?.data) return res.json({ results: [] });
 
-    const $ = load(r.data);
-    const results = [];
-
-    // cada resultado está en form.result_form dentro de col-xs-6
-    $("form.result_form").each((_, el) => {
-      const videoId = $(el).find('input[name="videoId"]').val();
-      const title = $(el).find(".search-info h3").text().trim() || "";
-      const thumbnail = $(el).find("img.vi_thumimage").attr("src") || "";
-      const duration = $(el).find(".iwrap span.time").text().trim() || "";
-      if (videoId && title) results.push({ videoId, title, thumbnail, duration });
-    });
+    const data = r.data;
+    const results = (data.items || []).map((item) => ({
+      videoId: item.id,
+      title: item.title,
+      duration: item.duration,
+      size: item.size,
+      channelTitle: item.channelTitle,
+      source: item.source,
+    }));
 
     console.log(` q="${q}" url=${url} found=${results.length}`);
     return res.json({ results });
@@ -62,44 +64,33 @@ app.get("/search", async (req, res) => {
 
 /**
  * 🎧 /download/:id
+ * Descarga usando mp3youtube.cc
  */
-app.get("/download/:id", async (req, res) => {
+app.post("/download/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Falta videoId" });
 
-  const url = `${BASE_URL}/convert/?videoId=${encodeURIComponent(id)}`;
-
   try {
-    const r = await axios.get(url, { headers: DEFAULT_HEADERS, timeout: 20000 });
+    const r = await axios.post(
+      BASE_DOWNLOAD,
+      new URLSearchParams({ key: DOWNLOAD_KEY, videoId: id }).toString(),
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+          Origin: "https://iframe.y2meta-uk.com",
+          Referer: "https://iframe.y2meta-uk.com",
+        },
+        timeout: 20000,
+      }
+    );
+
     if (!r?.data) return res.json({ audio: null });
 
-    const $ = load(r.data);
-    let audio = null;
-
-    // botón 320kbps
-    const btn = $('button.y2link-download.custom[data-note="320"]').first();
-    if (btn.length) {
-      const base = btn.attr("data-base");
-      const details = btn.attr("data-details");
-      if (base && details) audio = `${base}?${details}`;
-    }
-
-    // fallback: mayor nota disponible
-    if (!audio) {
-      let bestNote = 0;
-      $('button.y2link-download.custom').each((_, el) => {
-        const note = parseInt($(el).attribs["data-note"] || "0");
-        const base = $(el).attribs["data-base"];
-        const details = $(el).attribs["data-details"];
-        if (note > bestNote && base && details) {
-          bestNote = note;
-          audio = `${base}?${details}`;
-        }
-      });
-    }
-
-    console.log(`DOWNLOAD id=${id} url=${url} foundAudio=${!!audio}`);
-    return res.json({ audio: audio || null });
+    const audio = r.data?.audio?.url || null;
+    console.log(`DOWNLOAD id=${id} foundAudio=${!!audio}`);
+    return res.json({ audio });
   } catch (err) {
     console.error("Error en /download:", err.message || err);
     return res.status(500).json({ error: "Error al obtener audio" });
@@ -107,5 +98,5 @@ app.get("/download/:id", async (req, res) => {
 });
 
 app.listen(PORT, () =>
-  console.log(`✅ Musikfy Loader corriendo en puerto ${PORT} usando ${BASE_URL}`)
+  console.log(`✅ Musikfy Loader corriendo en puerto ${PORT}`)
 );
