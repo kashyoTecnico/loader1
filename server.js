@@ -1,103 +1,99 @@
-// server.js — versión 100% funcional con Render y Flutter (scraping MP3Juices)
 import express from "express";
 import axios from "axios";
+import cheerio from "cheerio";
 import cors from "cors";
-import * as cheerio from "cheerio";
-import dotenv from "dotenv";
 
-dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 10000;
+// 🌐 Página base
 const BASE_URL = "https://v3.mp3juices.click";
 
-const HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-  Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-};
-
 // 🟢 Root
-app.get("/", (req, res) => {
-  res.send("🎵 Musikfy Loader corriendo con MP3Juices.click 🚀");
-});
+app.get("/", (req, res) =>
+  res.send("🎧 Musikfy Scraper activo en mp3juices.click 🚀")
+);
 
-// 🔍 SEARCH - Scrapea los resultados de MP3Juices
+// 🔍 Buscar canciones
 app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
   try {
-    const searchUrl = `${BASE_URL}/?url=${encodeURIComponent(q)}`;
-    const { data } = await axios.get(searchUrl, { headers: HEADERS, timeout: 20000 });
+    console.log(`🔎 Buscando: ${q}`);
+
+    const { data } = await axios.get(`${BASE_URL}/search/${encodeURIComponent(q)}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
+      },
+      timeout: 20000,
+    });
 
     const $ = cheerio.load(data);
     const results = [];
 
-    $(".result").each((_, el) => {
-      const title = $(el).find(".title b").text().trim();
-      const id = $(el).find("input.videoId").attr("value");
-      const duration = $(el).find(".videoDuration").text().trim();
+    $(".list-group-item").each((i, el) => {
+      const title = $(el).find(".title").text().trim();
+      const duration = $(el).find(".duration").text().trim();
+      const size = $(el).find(".size").text().trim();
+      const link = $(el).find("a.btn-success").attr("href");
+      const id = link ? link.split("/").pop() : null;
 
-      if (id && title) {
-        results.push({ id, title, duration });
+      if (title && id) {
+        results.push({
+          id,
+          title,
+          duration,
+          size,
+          source: BASE_URL,
+        });
       }
     });
 
-    console.log(`🔎 SEARCH "${q}" => ${results.length} resultados`);
+    console.log(`✅ ${results.length} resultados`);
     return res.json({ results });
   } catch (err) {
     console.error("❌ Error en /search:", err.message);
-    return res.status(500).json({ error: "Error al buscar canciones" });
+    return res.status(500).json({ error: "Error al hacer scraping" });
   }
 });
 
-// 🎧 DOWNLOAD - Obtiene el enlace de descarga real
+// 🎵 Obtener enlace de descarga real
 app.post("/download/:id", async (req, res) => {
   const id = req.params.id;
-  if (!id) return res.status(400).json({ error: "Falta videoId" });
+  if (!id) return res.status(400).json({ error: "Falta ID de canción" });
 
   try {
-    const videoUrl = `${BASE_URL}/?url=${id}`;
-    const { data } = await axios.get(videoUrl, { headers: HEADERS, timeout: 20000 });
+    console.log(`🎶 Buscando enlace de descarga para ID: ${id}`);
+
+    const { data } = await axios.get(`${BASE_URL}/download/${id}`, {
+      headers: {
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
+      },
+      timeout: 20000,
+    });
 
     const $ = cheerio.load(data);
-    const link = $(".download_btn a").attr("href");
+    const audio = $("a.btn-success").attr("href");
 
-    if (!link) {
-      console.log(`⚠️ No se encontró link de descarga para ${id}`);
-      return res.status(404).json({ error: "No se encontró link de descarga" });
+    if (!audio) {
+      console.log("⚠️ No se encontró enlace de audio");
+      return res.status(404).json({ error: "No se encontró audio" });
     }
 
-    const finalUrl = link.startsWith("http") ? link : `${BASE_URL}${link}`;
-    console.log(`🎶 DOWNLOAD ${id} -> ${finalUrl}`);
-    return res.json({ audio: finalUrl });
+    console.log(`✅ Enlace de audio encontrado`);
+    return res.json({ audio });
   } catch (err) {
     console.error("❌ Error en /download:", err.message);
     return res.status(500).json({ error: "Error al obtener audio" });
   }
 });
 
-// 🎧 GET fallback (para compatibilidad con tu Flutter)
-app.get("/download/:id", async (req, res) => {
-  const id = req.params.id;
-  try {
-    const videoUrl = `${BASE_URL}/?url=${id}`;
-    const { data } = await axios.get(videoUrl, { headers: HEADERS, timeout: 20000 });
-
-    const $ = cheerio.load(data);
-    const link = $(".download_btn a").attr("href");
-    const finalUrl = link?.startsWith("http") ? link : `${BASE_URL}${link}`;
-
-    console.log(`🔁 GET /download/${id} -> ${!!finalUrl}`);
-    return res.json({ audio: finalUrl });
-  } catch (err) {
-    console.error("❌ Error GET /download:", err.message);
-    return res.status(500).json({ error: "Error alternativo al obtener audio" });
-  }
-});
-
-app.listen(PORT, () => console.log(`✅ Musikfy Loader corriendo en puerto ${PORT}`));
+// 🚀 Servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () =>
+  console.log(`✅ Musikfy Scraper corriendo en puerto ${PORT}`)
+);
