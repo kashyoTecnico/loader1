@@ -1,21 +1,18 @@
 import express from "express";
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import cors from "cors";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🌐 Página base
 const BASE_URL = "https://v3.mp3juices.click";
 
-// 🟢 Root
 app.get("/", (req, res) =>
   res.send("🎧 Musikfy Scraper activo en mp3juices.click 🚀")
 );
 
-// 🔍 Buscar canciones
 app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
@@ -60,7 +57,6 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🎵 Obtener enlace de descarga real
 app.post("/download/:id", async (req, res) => {
   const id = req.params.id;
   if (!id) return res.status(400).json({ error: "Falta ID de canción" });
@@ -92,7 +88,6 @@ app.post("/download/:id", async (req, res) => {
   }
 });
 
-// 🚀 Servidor
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
   console.log(`✅ Musikfy Scraper corriendo en puerto ${PORT}`)
