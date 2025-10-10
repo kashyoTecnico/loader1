@@ -1,17 +1,16 @@
 {
   "name": "musikfy-loader",
   "version": "1.0.0",
-  "description": "Servidor Musikfy Loader para Flutter",
-  "main": "server.js",
   "type": "module",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.7.2",
-    "cheerio": "^1.0.0-rc.12",
+    "axios": "^1.7.5",
+    "cheerio": "^1.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.3",
-    "express": "^4.18.2"
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
   }
 }
