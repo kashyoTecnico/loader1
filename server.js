@@ -1,32 +1,36 @@
 import express from 'express';
-import axios from 'axios';
-import * as cheerio from 'cheerio';
+import puppeteer from 'puppeteer';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
-app.get('/', (req, res) => res.send('Server is running'));
 
 app.get('/search', async (req, res) => {
   const query = req.query.q;
   if (!query) return res.status(400).json({ error: 'Query is required' });
 
+  let browser;
   try {
-    const { data } = await axios.get(`https://mp3juice.co/search?q=${encodeURIComponent(query)}`);
-    const $ = cheerio.load(data);
+    browser = await puppeteer.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
+    const page = await browser.newPage();
 
-    const results = [];
-    $('#results .result').each((i, elem) => {
-      const title = $(elem).find('div').first().text().trim();
-      const playHref = $(elem).find('a[id]').attr('href') || '';
-      const mp3Href = $(elem).find('a.clicked').attr('href') || '';
-      results.push({ title, playUrl: playHref, mp3Url: mp3Href });
+    await page.goto(`https://mp3juice.co/search?q=${encodeURIComponent(query)}`, { waitUntil: 'networkidle2' });
+    await page.waitForSelector('#results .result', { timeout: 10000 });
+
+    const results = await page.evaluate(() => {
+      return Array.from(document.querySelectorAll('#results .result')).map(r => {
+        const title = r.querySelector('div')?.innerText || '';
+        const mp3Url = r.querySelector('a.clicked')?.href || '';
+        const playUrl = r.querySelector('a[id]')?.href || '';
+        return { title, mp3Url, playUrl };
+      });
     });
 
     res.json(results);
-  } catch (error) {
-    console.error(error);
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Failed to fetch results' });
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
