@@ -2,64 +2,34 @@ import express from "express";
 import axios from "axios";
 import * as cheerio from "cheerio";
 import cors from "cors";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const BASE_URL = "https://v3.mp3juices.click";
+const CDN_API = "https://api.cdnframe.com/api/v5/info";
+const ORIGIN = "https://clickapi.net";
+const SECRET = "LLfwMtN6IxmCeGoZgfAjuLYjQQTRJ6suPo-cRLfQu70"; // Token base usado por la web original
 
-/* ===========================================================
-   🔐 TOKEN DINÁMICO DE CDNFRAME
-   =========================================================== */
-async function getAuthToken() {
-  try {
-    const { data } = await axios.get("https://clickapi.net/api/session", {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
-        Origin: "https://clickapi.net",
-        Referer: "https://clickapi.net/",
-      },
-      timeout: 10000,
-    });
+app.get("/", (req, res) => {
+  res.send("🎧 Musikfy Scraper activo y listo 🚀");
+});
 
-    if (data?.token) {
-      console.log("🔐 Token generado correctamente");
-      return data.token;
-    }
-
-    console.warn("⚠️ No se recibió token válido:", data);
-    return null;
-  } catch (err) {
-    console.error("❌ Error obteniendo token:", err.message);
-    return null;
-  }
-}
-
-/* ===========================================================
-   🏠 RAÍZ
-   =========================================================== */
-app.get("/", (req, res) =>
-  res.send("🎧 Musikfy Scraper activo con token dinámico 🚀")
-);
-
-/* ===========================================================
-   🔍 BÚSQUEDA EN MP3JUICES
-   =========================================================== */
+// 🔎 Scraping del buscador
 app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
 
   try {
-    console.log(`🔎 Buscando: ${q}`);
-
+    console.log(`🔍 Buscando: ${q}`);
     const { data } = await axios.get(`${BASE_URL}/search/${encodeURIComponent(q)}`, {
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
       },
-      timeout: 20000,
     });
 
     const $ = cheerio.load(data);
@@ -73,103 +43,60 @@ app.get("/search", async (req, res) => {
       const id = link ? link.split("/").pop() : null;
 
       if (title && id) {
-        results.push({
-          id,
-          title,
-          duration,
-          size,
-          source: BASE_URL,
-        });
+        results.push({ id, title, duration, size });
       }
     });
 
-    console.log(`✅ ${results.length} resultados encontrados`);
-    return res.json({ results });
+    console.log(`✅ ${results.length} resultados`);
+    res.json({ results });
   } catch (err) {
     console.error("❌ Error en /search:", err.message);
-    return res.status(500).json({ error: "Error al hacer scraping" });
+    res.status(500).json({ error: "Error al hacer scraping" });
   }
 });
 
-/* ===========================================================
-   🎶 DESCARGA DESDE MP3JUICES
-   =========================================================== */
-app.post("/download/:id", async (req, res) => {
-  const id = req.params.id;
-  if (!id) return res.status(400).json({ error: "Falta ID de canción" });
+// 🧠 Genera token JWT válido para CDN API
+function generarToken() {
+  const payload = {
+    origin: ORIGIN,
+    sessionId: crypto.randomUUID(),
+  };
 
-  try {
-    console.log(`🎶 Buscando enlace de descarga para ID: ${id}`);
+  return jwt.sign(payload, SECRET, { expiresIn: "10m" });
+}
 
-    const { data } = await axios.get(`${BASE_URL}/download/${id}`, {
-      headers: {
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
-      },
-      timeout: 20000,
-    });
-
-    const $ = cheerio.load(data);
-    const audio = $("a.btn-success").attr("href");
-
-    if (!audio) {
-      console.log("⚠️ No se encontró enlace de audio");
-      return res.status(404).json({ error: "No se encontró audio" });
-    }
-
-    console.log(`✅ Enlace de audio encontrado`);
-    return res.json({ audio });
-  } catch (err) {
-    console.error("❌ Error en /download:", err.message);
-    return res.status(500).json({ error: "Error al obtener audio" });
-  }
-});
-
-/* ===========================================================
-   🧠 NUEVO ENDPOINT /info/:id CON TOKEN AUTOMÁTICO
-   =========================================================== */
+// 🎧 Info y descarga directa desde CDN
 app.get("/info/:id", async (req, res) => {
-  const id = req.params.id;
+  const { id } = req.params;
   if (!id) return res.status(400).json({ error: "Falta ID" });
 
   try {
-    console.log(`ℹ️ Obteniendo info para ID: ${id}`);
+    const token = generarToken();
+    console.log(`🪙 Token generado OK para ${id}`);
 
-    const token = await getAuthToken();
-    if (!token)
-      return res.status(500).json({ error: "No se pudo generar token" });
+    const { data } = await axios.get(`${CDN_API}/${id}`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Origin: ORIGIN,
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
+      },
+    });
 
-    const response = await axios.get(
-      `https://api.cdnframe.com/api/v5/info/${id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-          Origin: "https://clickapi.net",
-          Referer: "https://clickapi.net/",
-          "User-Agent":
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0 Safari/537.36",
-        },
-        timeout: 15000,
-      }
-    );
+    // En algunos casos la API devuelve 401 si el token no se firma igual
+    if (!data || !data.url) {
+      console.warn("⚠️ No se obtuvo URL de descarga válida");
+      return res.status(404).json({ error: "No se pudo obtener enlace" });
+    }
 
-    console.log("✅ Info obtenida correctamente");
-    return res.json(response.data);
+    res.json({ audio: data.url, info: data });
   } catch (err) {
-    console.error("❌ Error en /info:", err.message);
-    if (err.response)
-      return res
-        .status(err.response.status)
-        .json({ error: "Fallo en info", details: err.response.data });
-    return res.status(500).json({ error: "Fallo interno en info" });
+    console.error("❌ Error en /info:", err.response?.status, err.message);
+    res.status(500).json({ error: "Fallo al obtener info del CDN" });
   }
 });
 
-/* ===========================================================
-   🚀 SERVIDOR ACTIVO
-   =========================================================== */
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () =>
-  console.log(`✅ Musikfy Scraper activo en puerto ${PORT}`)
+  console.log(`✅ Musikfy Scraper corriendo en puerto ${PORT}`)
 );
