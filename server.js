@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import cheerio from "cheerio";
+import * as cheerio from "cheerio";
 import cors from "cors";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
@@ -14,12 +14,10 @@ const CDN_API = "https://api.cdnframe.com/api/v5/info";
 const ORIGIN = "https://v3.mp3juices.click";
 const SECRET = "LLfwMtN6IxmCeGoZgfAjuLYjQQTRJ6suPo-cRLfQu70";
 
-// Home
 app.get("/", (req, res) => {
   res.send("🎧 Musikfy Scraper activo y listo 🚀");
 });
 
-// 🔍 Search
 app.get("/search", async (req, res) => {
   const q = (req.query.q || "").trim();
   if (!q) return res.status(400).json({ error: "Falta parámetro q" });
@@ -54,14 +52,12 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// 🔑 Generar token
 function generarToken(origin) {
   const sessionId = crypto.randomUUID();
   const payload = { origin, sessionId };
   return jwt.sign(payload, SECRET, { algorithm: "HS256", expiresIn: "10m" });
 }
 
-// 🎧 Info / download
 app.get("/info/:id", async (req, res) => {
   const { id } = req.params;
   if (!id) return res.status(400).json({ error: "Falta ID" });
