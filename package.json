@@ -1,7 +1,7 @@
 {
   "name": "musikfy",
   "version": "1.0.0",
-  "description": "Backend Musikfy tipo Spotify usando YouTube Data API y conversión a MP3",
+  "description": "Backend Musikfy usando Deezer Simple API",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -11,10 +11,9 @@
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.19.2",
     "cors": "^2.8.5",
-    "node-fetch": "^3.3.2",
-    "ytdl-core": "^4.10.3",
-    "fluent-ffmpeg": "^2.1.2"
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2",
+    "node-fetch": "^3.3.2"
   }
 }
