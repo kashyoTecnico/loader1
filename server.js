@@ -7,37 +7,53 @@ const app = express();
 app.use(cors());
 
 app.get("/", (req, res) => {
-  res.json({ message: "🎵 API scraper de música activo" });
+  res.json({ message: "🎵 Musikfy API activa — Scraper de MP3Juice" });
 });
 
-// Endpoint principal
 app.get("/search", async (req, res) => {
   const query = req.query.q;
-  if (!query) return res.status(400).json({ error: "Falta el parámetro q" });
+  if (!query) return res.status(400).json({ error: "Falta el parámetro ?q=" });
 
   try {
-    // 🔍 ejemplo: busca en una página pública (ajustaremos después)
-    const url = `https://www.musica.com/letras.asp?letra=${encodeURIComponent(query)}`;
-    const { data } = await axios.get(url);
-    const $ = cheerio.load(data);
-
-    const results = [];
-
-    $("a.enlaceCancion").each((i, el) => {
-      const title = $(el).text();
-      const link = $(el).attr("href");
-      results.push({
-        title,
-        link: `https://www.musica.com/${link}`,
-      });
+    const url = "https://www.mp3juice.co/";
+    const { data } = await axios.post(url, new URLSearchParams({ q: query }).toString(), {
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0",
+        "Referer": "https://www.mp3juice.co/",
+      },
     });
 
+    const $ = cheerio.load(data);
+    const results = [];
+
+    // El contenedor principal de resultados puede variar, pero suele ser algo como:
+    $(".video").each((i, el) => {
+      const title = $(el).find(".title").text().trim();
+      const duration = $(el).find(".duration").text().trim();
+      const link = $(el).find("a.download_button").attr("href");
+      const thumbnail = $(el).find("img").attr("src");
+
+      if (title) {
+        results.push({
+          title,
+          duration,
+          link: link ? `https://www.mp3juice.co${link}` : null,
+          thumbnail,
+        });
+      }
+    });
+
+    if (results.length === 0) {
+      return res.status(404).json({ message: "No se encontraron resultados o estructura cambió" });
+    }
+
     res.json({ query, results });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener resultados" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Error al scrapear MP3Juice" });
   }
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Musikfy backend activo en puerto ${PORT}`));
