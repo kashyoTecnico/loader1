@@ -15,43 +15,33 @@ app.get("/search", async (req, res) => {
   if (!query) return res.status(400).json({ error: "Falta el parámetro ?q=" });
 
   try {
-    const url = "https://www.mp3juice.co/";
-    const { data } = await axios.post(url, new URLSearchParams({ q: query }).toString(), {
+    // 🔍 Simula lo que hace MP3Juice cuando escribes en el buscador
+    const { data } = await axios.post("https://www.mp3juice.co/", new URLSearchParams({ q: query }).toString(), {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Referer": "https://www.mp3juice.co/",
+        "Origin": "https://www.mp3juice.co"
       },
     });
 
     const $ = cheerio.load(data);
-    const results = [];
 
-    // El contenedor principal de resultados puede variar, pero suele ser algo como:
-    $(".video").each((i, el) => {
-      const title = $(el).find(".title").text().trim();
-      const duration = $(el).find(".duration").text().trim();
-      const link = $(el).find("a.download_button").attr("href");
-      const thumbnail = $(el).find("img").attr("src");
-
-      if (title) {
-        results.push({
-          title,
-          duration,
-          link: link ? `https://www.mp3juice.co${link}` : null,
-          thumbnail,
-        });
-      }
+    // Extrae la lista de sugerencias <li> que se ve en el autocompletado
+    const suggestions = [];
+    $("form ul li").each((i, el) => {
+      const text = $(el).text().trim();
+      if (text) suggestions.push(text);
     });
 
-    if (results.length === 0) {
-      return res.status(404).json({ message: "No se encontraron resultados o estructura cambió" });
+    if (suggestions.length === 0) {
+      return res.status(404).json({ message: "No se encontraron sugerencias o la estructura cambió" });
     }
 
-    res.json({ query, results });
+    res.json({ query, suggestions });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Error al scrapear MP3Juice" });
+    res.status(500).json({ error: "Error al obtener sugerencias desde MP3Juice" });
   }
 });
 
