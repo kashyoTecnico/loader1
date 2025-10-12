@@ -1,59 +1,43 @@
-const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
-const cors = require('cors');
+import express from "express";
+import axios from "axios";
+import * as cheerio from "cheerio";
+import cors from "cors";
 
 const app = express();
-const PORT = 3000;
-
 app.use(cors());
-app.use(express.json());
 
-// Endpoint de búsqueda
-app.get('/search', async (req, res) => {
-    const query = req.query.q;
-    if (!query) return res.status(400).json({ error: 'Query missing' });
-
-    const url = `https://www.ceenaija.com/?s=${encodeURIComponent(query)}`;
-    try {
-        const { data } = await axios.get(url);
-        const $ = cheerio.load(data);
-        const results = [];
-
-        $('.td-ss-main-content .item-details h3.entry-title a').each((i, el) => {
-            const title = $(el).text().trim();
-            const href = $(el).attr('href');
-            results.push({ title, href });
-        });
-
-        res.json(results);
-    } catch (error) {
-        console.log('Error search:', error.message);
-        res.status(500).json({ error: 'Failed to fetch search results' });
-    }
+app.get("/", (req, res) => {
+  res.json({ message: "🎵 API scraper de música activo" });
 });
 
-// Endpoint para obtener MP3 de una página de canción
-app.get('/track', async (req, res) => {
-    const trackUrl = req.query.url;
-    if (!trackUrl) return res.status(400).json({ error: 'Track URL missing' });
+// Endpoint principal
+app.get("/search", async (req, res) => {
+  const query = req.query.q;
+  if (!query) return res.status(400).json({ error: "Falta el parámetro q" });
 
-    try {
-        const { data } = await axios.get(trackUrl);
-        const $ = cheerio.load(data);
-        const audioElement = $('figure.wp-block-audio audio').first();
-        const audioUrl = audioElement.attr('src');
-        const title = $('h1.entry-title').text().trim() || audioUrl.split('/').pop();
+  try {
+    // 🔍 ejemplo: busca en una página pública (ajustaremos después)
+    const url = `https://www.musica.com/letras.asp?letra=${encodeURIComponent(query)}`;
+    const { data } = await axios.get(url);
+    const $ = cheerio.load(data);
 
-        if (!audioUrl) return res.status(404).json({ error: 'Audio not found' });
+    const results = [];
 
-        res.json({ title, url: audioUrl });
-    } catch (error) {
-        console.log('Error track:', error.message);
-        res.status(500).json({ error: 'Failed to fetch track' });
-    }
+    $("a.enlaceCancion").each((i, el) => {
+      const title = $(el).text();
+      const link = $(el).attr("href");
+      results.push({
+        title,
+        link: `https://www.musica.com/${link}`,
+      });
+    });
+
+    res.json({ query, results });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener resultados" });
+  }
 });
 
-app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Servidor activo en puerto ${PORT}`));
