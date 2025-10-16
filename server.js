@@ -1,6 +1,8 @@
 import express from "express";
 import cors from "cors";
-import { YTDlpWrap } from "yt-dlp-wrap";
+import pkg from "yt-dlp-wrap";
+const { YTDlpWrap } = pkg; // ✅ Import correcto para módulos CommonJS
+
 import ffmpegPath from "ffmpeg-static";
 import ffmpeg from "fluent-ffmpeg";
 import fs from "fs";
@@ -23,15 +25,15 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 // 🧩 Inicializa yt-dlp
 const ytDlp = new YTDlpWrap();
 YTDlpWrap.downloadFromGithub().catch(() => {
-  console.log("yt-dlp ya estaba descargado");
+  console.log("yt-dlp ya estaba disponible");
 });
 
 // ✅ Ruta principal
 app.get("/", (req, res) => {
   res.json({
-    status: "✅ Loader activo",
-    version: "2.0",
-    endpoints: ["/download?q=nombre+de+cancion"],
+    status: "✅ Loader activo y funcional",
+    version: "2.1",
+    ejemplo: "/download?q=avicii+levels",
   });
 });
 
@@ -44,9 +46,9 @@ app.get("/download", async (req, res) => {
     const filename = `${Date.now()}.mp3`;
     const filePath = path.join(TMP, filename);
 
-    console.log(`🎧 Buscando y descargando: ${query}`);
+    console.log(`🎧 Descargando: ${query}`);
 
-    // 🔹 Descarga y convierte directamente desde YouTube
+    // 🔹 Descarga y convierte desde YouTube a MP3
     await ytDlp.execPromise([
       `ytsearch1:${query}`,
       "-x",
@@ -58,7 +60,7 @@ app.get("/download", async (req, res) => {
 
     if (!fs.existsSync(filePath)) throw new Error("No se generó el MP3");
 
-    // 🔹 Envía el archivo MP3 completo
+    // 🔹 Enviar el archivo convertido
     res.setHeader("Content-Type", "audio/mpeg");
     const stream = fs.createReadStream(filePath);
     stream.pipe(res);
@@ -68,9 +70,9 @@ app.get("/download", async (req, res) => {
       console.log(`🗑️ Archivo temporal eliminado: ${filename}`);
     });
   } catch (err) {
-    console.error("❌ Error:", err);
-    res.status(500).json({ error: "Fallo al convertir" });
+    console.error("❌ Error al convertir:", err);
+    res.status(500).json({ error: "Fallo al convertir o descargar" });
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`));
