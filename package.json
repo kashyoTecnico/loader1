@@ -1,19 +1,6 @@
-{
-  "name": "musikfy",
-  "version": "1.0.0",
-  "description": "Backend Musikfy usando Deezer Simple API",
-  "main": "server.js",
-  "type": "module",
-  "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.19.2",
-    "node-fetch": "^3.3.2"
-  }
+"dependencies": {
+  "express": "^4.18.2",
+  "yt-dlp-wrap": "^2.1.2",
+  "fluent-ffmpeg": "^2.1.2",
+  "ffmpeg-static": "^5.1.0"
 }
