@@ -1,72 +1,69 @@
 import express from "express";
-import fetch from "node-fetch";
+import axios from "axios";
 import cors from "cors";
+import fs from "fs";
+import path from "path";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 
-// ✅ Buscar canciones en SoundCloud
+// ✅ Ruta para buscar canciones (por nombre)
 app.get("/search", async (req, res) => {
-  const query = req.query.q;
-  if (!query) return res.status(400).json({ error: "Falta parámetro ?q" });
+  const { q } = req.query;
+  if (!q) return res.status(400).json({ error: "Falta el parámetro 'q'" });
 
   try {
-    const url = `https://soundcloud.com/search/sounds?q=${encodeURIComponent(query)}`;
-    const html = await (await fetch(url)).text();
-
-    // Extrae enlaces de tracks
-    const matches = [...html.matchAll(/href="(\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)"/g)];
-    const unique = [...new Set(matches.map((m) => m[1]))].slice(0, 10);
-
-    const results = unique.map((path) => ({
-      title: decodeURIComponent(path.split("/")[1]).replace(/-/g, " "),
-      url: `https://soundcloud.com${path}`,
-    }));
-
-    res.json({ results });
+    const url = `https://api-v2.scdlapi.org/yt/search?q=${encodeURIComponent(q)}`;
+    const { data } = await axios.get(url);
+    res.json(data);
   } catch (err) {
-    console.error("❌ Error en búsqueda:", err);
-    res.status(500).json({ error: "No se pudieron obtener los resultados" });
+    console.error("Error en búsqueda:", err.message);
+    res.status(500).json({ error: "Error al buscar canciones" });
   }
 });
 
-// ✅ Descargar desde Cobalt.tools (nueva API)
+// ✅ Ruta para descargar canción por ID
 app.get("/download", async (req, res) => {
-  const trackUrl = req.query.url;
-  if (!trackUrl) return res.status(400).json({ error: "Falta parámetro ?url" });
+  const { id } = req.query;
+  if (!id) return res.status(400).json({ error: "Falta el parámetro 'id'" });
 
   try {
-    const cobaltAPI = "https://api.cobalt.tools/api/json";
-    const response = await fetch(cobaltAPI, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Origin: "https://cobalt.tools",
-      },
-      body: JSON.stringify({
-        url: trackUrl,
-        vCodec: "none",     // solo audio
-        aFormat: "mp3",     // formato mp3
-        filenamePattern: "basic",
-        isAudioOnly: true,
-      }),
+    // obtiene enlace de descarga MP3 completo
+    const url = `https://api-v2.scdlapi.org/yt/download?id=${id}`;
+    const { data } = await axios.get(url);
+    const mp3Url = data?.url;
+
+    if (!mp3Url) return res.status(404).json({ error: "No se pudo obtener enlace MP3" });
+
+    // descarga el MP3
+    const filePath = path.resolve(`downloads/${id}.mp3`);
+    const writer = fs.createWriteStream(filePath);
+
+    const response = await axios({
+      url: mp3Url,
+      method: "GET",
+      responseType: "stream",
     });
 
-    const data = await response.json();
-    if (!data.url) throw new Error("No se pudo obtener enlace de descarga");
+    response.data.pipe(writer);
 
-    res.json({
-      status: "ok",
-      title: data.meta?.title || "Desconocido",
-      downloadUrl: data.url,
+    writer.on("finish", () => {
+      console.log(`✅ Descargado: ${filePath}`);
+      res.download(filePath);
     });
+
+    writer.on("error", (err) => {
+      console.error("Error al guardar MP3:", err.message);
+      res.status(500).json({ error: "Fallo al guardar MP3" });
+    });
+
   } catch (err) {
-    console.error("❌ Error al descargar:", err);
+    console.error("Error al descargar:", err.message);
     res.status(500).json({ error: "Fallo al convertir o descargar" });
   }
 });
 
-app.listen(PORT, () => console.log(`🚀 Servidor activo en puerto ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`));
