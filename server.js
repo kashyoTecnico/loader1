@@ -4,6 +4,8 @@ import cors from "cors";
 
 const app = express();
 app.use(cors());
+app.use(express.json());
+
 const PORT = process.env.PORT || 3000;
 
 // ✅ Buscar canciones en SoundCloud
@@ -15,12 +17,12 @@ app.get("/search", async (req, res) => {
     const url = `https://soundcloud.com/search/sounds?q=${encodeURIComponent(query)}`;
     const html = await (await fetch(url)).text();
 
-    // Extrae resultados con regex simple (solo enlaces de tracks)
+    // Extrae enlaces de tracks
     const matches = [...html.matchAll(/href="(\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+)"/g)];
     const unique = [...new Set(matches.map((m) => m[1]))].slice(0, 10);
 
     const results = unique.map((path) => ({
-      title: decodeURIComponent(path.split("/")[1]),
+      title: decodeURIComponent(path.split("/")[1]).replace(/-/g, " "),
       url: `https://soundcloud.com${path}`,
     }));
 
@@ -31,7 +33,7 @@ app.get("/search", async (req, res) => {
   }
 });
 
-// ✅ Descargar desde Cobalt.tools
+// ✅ Descargar desde Cobalt.tools (nueva API)
 app.get("/download", async (req, res) => {
   const trackUrl = req.query.url;
   if (!trackUrl) return res.status(400).json({ error: "Falta parámetro ?url" });
@@ -40,14 +42,27 @@ app.get("/download", async (req, res) => {
     const cobaltAPI = "https://api.cobalt.tools/api/json";
     const response = await fetch(cobaltAPI, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: trackUrl, vCodec: "none", aFormat: "mp3" }),
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://cobalt.tools",
+      },
+      body: JSON.stringify({
+        url: trackUrl,
+        vCodec: "none",     // solo audio
+        aFormat: "mp3",     // formato mp3
+        filenamePattern: "basic",
+        isAudioOnly: true,
+      }),
     });
 
     const data = await response.json();
     if (!data.url) throw new Error("No se pudo obtener enlace de descarga");
 
-    res.json({ downloadUrl: data.url });
+    res.json({
+      status: "ok",
+      title: data.meta?.title || "Desconocido",
+      downloadUrl: data.url,
+    });
   } catch (err) {
     console.error("❌ Error al descargar:", err);
     res.status(500).json({ error: "Fallo al convertir o descargar" });
