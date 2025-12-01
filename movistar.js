@@ -5,7 +5,7 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 const app = express();
 
 app.use("/", createProxyMiddleware({
-  target: "https://google.com",
+  target: "web.whatsapp.com",
   changeOrigin: true
 }));
 
