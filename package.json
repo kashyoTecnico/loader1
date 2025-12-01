@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "engines": {
-    "node": ">=18"
+    "node": ">=3.3.2"
   },
   "scripts": {
     "start": "node movistar.js"
